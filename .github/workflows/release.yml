@@ -94,9 +94,9 @@ jobs:
           - name: x86_64
             target: android-x64
             output_name: infinity-x86_64-release.apk
-          # Matrix runner 3: Universal (covers all architectures: arm, arm64, x64)
+          # Matrix runner 3: Universal (all architectures)
           - name: universal
-            target: android-arm,android-arm64,android-x64
+            target: ''
             output_name: infinity-universal-release.apk
 
     steps:
@@ -141,12 +141,19 @@ jobs:
         run: flutter pub get
 
       # This step compiles targeted release APK bypassing unnecessary dependency validation
+      # For targeted architectures (arm64, x86_64), we pass --target-platform; for universal, we omit it
       - name: Compile ${{ matrix.name }} APK
         run: |
-          flutter build apk --release \
-            --target-platform ${{ matrix.target }} \
-            --no-tree-shake-icons \
-            --android-skip-build-dependency-validation
+          if [ -n "${{ matrix.target }}" ]; then
+            flutter build apk --release \
+              --target-platform ${{ matrix.target }} \
+              --no-tree-shake-icons \
+              --android-skip-build-dependency-validation
+          else
+            flutter build apk --release \
+              --no-tree-shake-icons \
+              --android-skip-build-dependency-validation
+          fi
 
       # This step renames the compiled binary to the designated output name
       - name: Prepare APK binary
