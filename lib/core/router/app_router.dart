@@ -3,8 +3,10 @@ import 'package:go_router/go_router.dart';
 import '../../features/albums/album_detail_screen.dart';
 import '../../features/albums/trash_screen.dart';
 import '../../features/auth/auth_screen.dart';
+import '../../features/files/files_screen.dart';
 import '../../features/main/main_screen.dart';
 import '../../features/onboarding/onboarding_screen.dart';
+import '../../features/search/search_screen.dart';
 import '../settings/app_preferences.dart';
 
 // This code for constructing the GoRouter instance configured with user onboarding state
@@ -43,6 +45,14 @@ GoRouter createAppRouter(AppPreferences prefs) {
       GoRoute(
         path: '/trash',
         builder: (context, state) => const TrashScreen(),
+      ),
+      GoRoute(
+        path: '/search',
+        builder: (context, state) => const SearchScreen(),
+      ),
+      GoRoute(
+        path: '/files',
+        builder: (context, state) => const FilesScreen(),
       ),
       GoRoute(
         path: '/album-detail',

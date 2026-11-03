@@ -270,7 +270,7 @@ class TdlibService {
   Future<void> _ensureDefaultTopics() async {
     if (_vaultChatId == null) return;
 
-    final defaultTopicNames = ['Photos', 'Videos', 'Screenshots', 'Trash'];
+    final defaultTopicNames = ['Photos', 'Videos', 'Screenshots', 'Trash', 'Files'];
     for (final name in defaultTopicNames) {
       await createTopic(name);
     }

@@ -115,6 +115,82 @@ class AppDatabase extends _$AppDatabase {
         .watch();
   }
 
+  // This code for watching non-photo documents and general files in the vault
+  Stream<List<MediaItem>> watchFiles() {
+    return (select(mediaItems)
+          ..where((tbl) =>
+              tbl.isTrashed.equals(false) &
+              (tbl.mediaType.equals('document') |
+                  tbl.mediaType.equals('file') |
+                  tbl.mediaType.equals('archive') |
+                  tbl.mediaType.equals('audio')))
+          ..orderBy([
+            (tbl) => OrderingTerm(expression: tbl.dateAdded, mode: OrderingMode.desc)
+          ]))
+        .watch();
+  }
+
+  // This code for dynamically querying and filtering media and files with search predicates
+  Stream<List<MediaItem>> searchMedia({
+    String? query,
+    String? mediaType,
+    DateTime? startDate,
+    DateTime? endDate,
+    bool? isFavorite,
+    bool? isPinnedOffline,
+  }) {
+    return (select(mediaItems)
+          ..where((tbl) {
+            Expression<bool> predicate = tbl.isTrashed.equals(false);
+
+            if (query != null && query.trim().isNotEmpty) {
+              final pattern = '%${query.trim()}%';
+              predicate = predicate &
+                  (tbl.filePath.like(pattern) | tbl.id.like(pattern));
+            }
+
+            if (mediaType != null && mediaType.isNotEmpty && mediaType != 'all') {
+              if (mediaType == 'files') {
+                predicate = predicate &
+                    (tbl.mediaType.equals('document') |
+                        tbl.mediaType.equals('file') |
+                        tbl.mediaType.equals('archive') |
+                        tbl.mediaType.equals('audio'));
+              } else {
+                predicate = predicate & tbl.mediaType.equals(mediaType);
+              }
+            }
+
+            if (startDate != null) {
+              predicate = predicate &
+                  coalesce([tbl.dateTaken, tbl.dateAdded])
+                      .isBiggerOrEqualValue(startDate);
+            }
+
+            if (endDate != null) {
+              predicate = predicate &
+                  coalesce([tbl.dateTaken, tbl.dateAdded])
+                      .isSmallerOrEqualValue(endDate);
+            }
+
+            if (isFavorite == true) {
+              predicate = predicate & tbl.isFavorite.equals(true);
+            }
+
+            if (isPinnedOffline == true) {
+              predicate = predicate & tbl.isPinnedOffline.equals(true);
+            }
+
+            return predicate;
+          })
+          ..orderBy([
+            (tbl) => OrderingTerm(
+                expression: coalesce([tbl.dateTaken, tbl.dateAdded]),
+                mode: OrderingMode.desc)
+          ]))
+        .watch();
+  }
+
   Future<int> insertMediaItem(MediaItemsCompanion item) =>
       into(mediaItems).insertOnConflictUpdate(item);
 

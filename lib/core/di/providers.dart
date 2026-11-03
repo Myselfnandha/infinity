@@ -77,3 +77,9 @@ final pendingTasksProvider = StreamProvider<List<SyncQueueData>>((ref) {
   final db = ref.watch(databaseProvider);
   return db.watchPendingSyncTasks();
 });
+
+// This code for streaming non-photo document and general files from the database
+final filesProvider = StreamProvider<List<MediaItem>>((ref) {
+  final db = ref.watch(databaseProvider);
+  return db.watchFiles();
+});

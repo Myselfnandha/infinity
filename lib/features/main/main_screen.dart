@@ -1,7 +1,9 @@
+// This code for root application scaffold featuring primary Cupertino tab navigation
 import 'package:flutter/cupertino.dart';
 import '../albums/albums_screen.dart';
-import '../gallery/favorites_screen.dart';
+import '../files/files_screen.dart';
 import '../gallery/photos_timeline_screen.dart';
+import '../search/search_screen.dart';
 import '../settings/settings_screen.dart';
 
 class MainScreen extends StatefulWidget {
@@ -26,8 +28,12 @@ class _MainScreenState extends State<MainScreen> {
             label: 'Albums',
           ),
           BottomNavigationBarItem(
-            icon: Icon(CupertinoIcons.heart),
-            label: 'Favorites',
+            icon: Icon(CupertinoIcons.search),
+            label: 'Search',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(CupertinoIcons.doc_on_doc),
+            label: 'Files',
           ),
           BottomNavigationBarItem(
             icon: Icon(CupertinoIcons.gear_alt),
@@ -42,8 +48,10 @@ class _MainScreenState extends State<MainScreen> {
           case 1:
             return const AlbumsScreen();
           case 2:
-            return const FavoritesScreen();
+            return const SearchScreen();
           case 3:
+            return const FilesScreen();
+          case 4:
             return const SettingsScreen();
           default:
             return const PhotosTimelineScreen();

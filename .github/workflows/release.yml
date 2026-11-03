@@ -86,13 +86,17 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Matrix runner 1: ARM64-v8a (target modern phones, ~70% faster compile)
+          # Matrix runner 1: ARM64-v8a (target modern physical phones)
           - name: arm64-v8a
             target: android-arm64
             output_name: infinity-arm64-v8a-release.apk
-          # Matrix runner 2: Universal (covers all architectures)
+          # Matrix runner 2: x86_64 (dedicated for PC Android emulators)
+          - name: x86_64
+            target: android-x64
+            output_name: infinity-x86_64-release.apk
+          # Matrix runner 3: Universal (covers all architectures: arm, arm64, x64)
           - name: universal
-            target: android-arm,android-arm64
+            target: android-arm,android-arm64,android-x64
             output_name: infinity-universal-release.apk
 
     steps:
