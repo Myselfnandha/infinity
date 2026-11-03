@@ -1,0 +1,194 @@
+# This workflow is for super-fast parallel builds and auto-uploading release APKs to GitHub Releases
+name: Fast Release APK Build & Publish
+
+on:
+  push:
+    tags:
+      - 'v*' # Trigger on version tags (e.g., v1.0.0, v0.1.0)
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release Tag Name (e.g. v1.0.0)'
+        required: false
+        default: 'v1.0.0'
+      is_draft:
+        description: 'Create as Draft Release'
+        required: false
+        type: boolean
+        default: false
+      is_prerelease:
+        description: 'Mark as Pre-release'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write # Required for creating releases and uploading binary assets
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # =========================================================================
+  # JOB 1: Fast Parallel Code Verification (Analysis & Unit Tests)
+  # =========================================================================
+  quality-check:
+    name: Code Quality & Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      # This step checks out the code with shallow depth for maximum speed
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      # This step sets up the Flutter environment with caching
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+          cache-key: "flutter-:os:-:channel:-:version:-:arch:-:hash:"
+
+      # This step caches pub packages to avoid redundant network downloads
+      - name: Cache Pub dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
+      # This step resolves dependencies
+      - name: Install dependencies
+        run: flutter pub get
+
+      # This step executes static analysis
+      - name: Run Flutter analyze
+        run: flutter analyze
+
+      # This step executes unit and widget test suite
+      - name: Run Flutter tests
+        run: flutter test
+
+  # =========================================================================
+  # JOB 2: Ultra-Fast Parallel Android APK Compilation
+  # =========================================================================
+  build-release-apks:
+    name: Build Release APKs
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      # This step checks out the repository with shallow depth for speed
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      # This step installs Java 17 Temurin JDK
+      - name: Set up Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      # This step configures Gradle caching for rapid builds across runs
+      - name: Setup Gradle Build Cache
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-home-cache-cleanup: true
+
+      # This step sets up Flutter SDK with runner caching
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+          cache-key: "flutter-:os:-:channel:-:version:-:arch:-:hash:"
+
+      # This step caches pub packages
+      - name: Cache Pub dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
+      # This step installs project dependencies
+      - name: Install dependencies
+        run: flutter pub get
+
+      # This step builds split-per-abi release APKs (arm64-v8a, armeabi-v7a, x86_64)
+      - name: Build Split per-ABI APKs
+        run: flutter build apk --release --split-per-abi --no-tree-shake-icons
+
+      # This step builds the universal release APK (runs fast reusing cached Gradle outputs)
+      - name: Build Universal Release APK
+        run: flutter build apk --release --no-tree-shake-icons
+
+      # This step organizes and renames APK binaries with descriptive names
+      - name: Prepare APK binaries
+        run: |
+          mkdir -p release-artifacts
+          cp build/app/outputs/flutter-apk/app-release.apk release-artifacts/infinity-universal-release.apk
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk release-artifacts/infinity-arm64-v8a-release.apk
+          cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk release-artifacts/infinity-armeabi-v7a-release.apk
+          cp build/app/outputs/flutter-apk/app-x86_64-release.apk release-artifacts/infinity-x86_64-release.apk
+          echo "Release APKs prepared:"
+          ls -lh release-artifacts/
+
+      # This step uploads APK artifacts to pipeline with zero compression overhead
+      - name: Upload APK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-apks
+          path: release-artifacts/*.apk
+          retention-days: 1
+          compression-level: 0 # Fastest upload speed without re-compressing APK archives
+
+  # =========================================================================
+  # JOB 3: Auto-Upload and Publish to GitHub Releases
+  # =========================================================================
+  publish-release:
+    name: Auto-Upload to GitHub Release
+    needs: [quality-check, build-release-apks]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      # This step determines the effective release tag
+      - name: Determine Release Tag
+        id: release_info
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.tag_name }}" ]; then
+            echo "tag=${{ github.event.inputs.tag_name }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=v1.0.0-${{ github.run_number }}" >> $GITHUB_OUTPUT
+          fi
+
+      # This step downloads all compiled APK artifacts
+      - name: Download compiled APKs
+        uses: actions/download-artifact@v4
+        with:
+          name: release-apks
+          path: release-artifacts
+
+      # This step automatically creates the GitHub Release and attaches the APKs
+      - name: Create GitHub Release & Upload APKs
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release_info.outputs.tag }}
+          name: Infinity Release ${{ steps.release_info.outputs.tag }}
+          draft: ${{ github.event.inputs.is_draft || false }}
+          prerelease: ${{ github.event.inputs.is_prerelease || false }}
+          generate_release_notes: true
+          files: release-artifacts/*.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

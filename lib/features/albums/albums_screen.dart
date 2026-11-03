@@ -1,7 +1,11 @@
+// This code for managing and displaying Telegram forum supergroup topic albums
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/di/providers.dart';
+import 'album_detail_screen.dart';
+import 'trash_screen.dart';
 
+// This code for rendering the album overview screen with topic mappings
 class AlbumsScreen extends ConsumerStatefulWidget {
   const AlbumsScreen({super.key});
 
@@ -136,6 +140,7 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
             ),
             const SizedBox(height: 8),
             ...defaultAlbums.map((album) {
+              final albumName = album['name'] as String;
               return Container(
                 margin: const EdgeInsets.only(bottom: 8),
                 decoration: BoxDecoration(
@@ -149,18 +154,98 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
                 child: CupertinoListTile(
                   leading: Icon(
                     album['icon'] as IconData,
-                    color: CupertinoColors.activeBlue,
+                    color: albumName == 'Trash'
+                        ? CupertinoColors.destructiveRed
+                        : CupertinoColors.activeBlue,
                   ),
                   title: Text(
-                    album['name'] as String,
+                    albumName,
                     style: const TextStyle(fontWeight: FontWeight.w500),
                   ),
                   subtitle: Text('Maps to topic: #${album['topic']}'),
                   trailing: const CupertinoListTileChevron(),
-                  onTap: () {},
+                  onTap: () {
+                    // This code for navigating to Trash or specific album detail screen
+                    if (albumName == 'Trash') {
+                      Navigator.of(context).push(
+                        CupertinoPageRoute(
+                          builder: (_) => const TrashScreen(),
+                        ),
+                      );
+                    } else {
+                      Navigator.of(context).push(
+                        CupertinoPageRoute(
+                          builder: (_) => AlbumDetailScreen(title: albumName),
+                        ),
+                      );
+                    }
+                  },
                 ),
               );
             }),
+            // This code for displaying user-created custom topic albums from SQLite
+            ref.watch(albumsProvider).when(
+                  data: (customAlbums) {
+                    if (customAlbums.isEmpty) return const SizedBox.shrink();
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 16),
+                        const Text(
+                          'CUSTOM TOPIC ALBUMS',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: CupertinoColors.secondaryLabel,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        ...customAlbums.map((cust) {
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            decoration: BoxDecoration(
+                              color: CupertinoColors.systemBackground
+                                  .resolveFrom(context),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: CupertinoColors.separator
+                                    .resolveFrom(context),
+                                width: 0.5,
+                              ),
+                            ),
+                            child: CupertinoListTile(
+                              leading: const Icon(
+                                CupertinoIcons.folder_fill,
+                                color: CupertinoColors.activeBlue,
+                              ),
+                              title: Text(
+                                cust.title,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w500),
+                              ),
+                              subtitle: Text(
+                                  'Topic ID: #${cust.topicId ?? 'Pending'}'),
+                              trailing: const CupertinoListTileChevron(),
+                              onTap: () {
+                                Navigator.of(context).push(
+                                  CupertinoPageRoute(
+                                    builder: (_) => AlbumDetailScreen(
+                                      title: cust.title,
+                                      albumId: cust.id,
+                                      topicId: cust.topicId,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          );
+                        }),
+                      ],
+                    );
+                  },
+                  loading: () => const SizedBox.shrink(),
+                  error: (err, stack) => const SizedBox.shrink(),
+                ),
           ],
         ),
       ),

@@ -232,6 +232,33 @@ class $MediaItemsTable extends MediaItems
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _isPinnedOfflineMeta = const VerificationMeta(
+    'isPinnedOffline',
+  );
+  @override
+  late final GeneratedColumn<bool> isPinnedOffline = GeneratedColumn<bool>(
+    'is_pinned_offline',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_pinned_offline" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _cloudStateMeta = const VerificationMeta(
+    'cloudState',
+  );
+  @override
+  late final GeneratedColumn<String> cloudState = GeneratedColumn<String>(
+    'cloud_state',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('LOCAL_ONLY'),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -254,6 +281,8 @@ class $MediaItemsTable extends MediaItems
     sha256Hash,
     perceptualHash,
     encryptionKeyId,
+    isPinnedOffline,
+    cloudState,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -413,6 +442,21 @@ class $MediaItemsTable extends MediaItems
         ),
       );
     }
+    if (data.containsKey('is_pinned_offline')) {
+      context.handle(
+        _isPinnedOfflineMeta,
+        isPinnedOffline.isAcceptableOrUnknown(
+          data['is_pinned_offline']!,
+          _isPinnedOfflineMeta,
+        ),
+      );
+    }
+    if (data.containsKey('cloud_state')) {
+      context.handle(
+        _cloudStateMeta,
+        cloudState.isAcceptableOrUnknown(data['cloud_state']!, _cloudStateMeta),
+      );
+    }
     return context;
   }
 
@@ -502,6 +546,14 @@ class $MediaItemsTable extends MediaItems
         DriftSqlType.string,
         data['${effectivePrefix}encryption_key_id'],
       ),
+      isPinnedOffline: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_pinned_offline'],
+      )!,
+      cloudState: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cloud_state'],
+      )!,
     );
   }
 
@@ -532,6 +584,8 @@ class MediaItem extends DataClass implements Insertable<MediaItem> {
   final String? sha256Hash;
   final String? perceptualHash;
   final String? encryptionKeyId;
+  final bool isPinnedOffline;
+  final String cloudState;
   const MediaItem({
     required this.id,
     this.filePath,
@@ -553,6 +607,8 @@ class MediaItem extends DataClass implements Insertable<MediaItem> {
     this.sha256Hash,
     this.perceptualHash,
     this.encryptionKeyId,
+    required this.isPinnedOffline,
+    required this.cloudState,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -603,6 +659,8 @@ class MediaItem extends DataClass implements Insertable<MediaItem> {
     if (!nullToAbsent || encryptionKeyId != null) {
       map['encryption_key_id'] = Variable<String>(encryptionKeyId);
     }
+    map['is_pinned_offline'] = Variable<bool>(isPinnedOffline);
+    map['cloud_state'] = Variable<String>(cloudState);
     return map;
   }
 
@@ -654,6 +712,8 @@ class MediaItem extends DataClass implements Insertable<MediaItem> {
       encryptionKeyId: encryptionKeyId == null && nullToAbsent
           ? const Value.absent()
           : Value(encryptionKeyId),
+      isPinnedOffline: Value(isPinnedOffline),
+      cloudState: Value(cloudState),
     );
   }
 
@@ -683,6 +743,8 @@ class MediaItem extends DataClass implements Insertable<MediaItem> {
       sha256Hash: serializer.fromJson<String?>(json['sha256Hash']),
       perceptualHash: serializer.fromJson<String?>(json['perceptualHash']),
       encryptionKeyId: serializer.fromJson<String?>(json['encryptionKeyId']),
+      isPinnedOffline: serializer.fromJson<bool>(json['isPinnedOffline']),
+      cloudState: serializer.fromJson<String>(json['cloudState']),
     );
   }
   @override
@@ -709,6 +771,8 @@ class MediaItem extends DataClass implements Insertable<MediaItem> {
       'sha256Hash': serializer.toJson<String?>(sha256Hash),
       'perceptualHash': serializer.toJson<String?>(perceptualHash),
       'encryptionKeyId': serializer.toJson<String?>(encryptionKeyId),
+      'isPinnedOffline': serializer.toJson<bool>(isPinnedOffline),
+      'cloudState': serializer.toJson<String>(cloudState),
     };
   }
 
@@ -733,6 +797,8 @@ class MediaItem extends DataClass implements Insertable<MediaItem> {
     Value<String?> sha256Hash = const Value.absent(),
     Value<String?> perceptualHash = const Value.absent(),
     Value<String?> encryptionKeyId = const Value.absent(),
+    bool? isPinnedOffline,
+    String? cloudState,
   }) => MediaItem(
     id: id ?? this.id,
     filePath: filePath.present ? filePath.value : this.filePath,
@@ -768,6 +834,8 @@ class MediaItem extends DataClass implements Insertable<MediaItem> {
     encryptionKeyId: encryptionKeyId.present
         ? encryptionKeyId.value
         : this.encryptionKeyId,
+    isPinnedOffline: isPinnedOffline ?? this.isPinnedOffline,
+    cloudState: cloudState ?? this.cloudState,
   );
   MediaItem copyWithCompanion(MediaItemsCompanion data) {
     return MediaItem(
@@ -811,6 +879,12 @@ class MediaItem extends DataClass implements Insertable<MediaItem> {
       encryptionKeyId: data.encryptionKeyId.present
           ? data.encryptionKeyId.value
           : this.encryptionKeyId,
+      isPinnedOffline: data.isPinnedOffline.present
+          ? data.isPinnedOffline.value
+          : this.isPinnedOffline,
+      cloudState: data.cloudState.present
+          ? data.cloudState.value
+          : this.cloudState,
     );
   }
 
@@ -836,13 +910,15 @@ class MediaItem extends DataClass implements Insertable<MediaItem> {
           ..write('syncStatus: $syncStatus, ')
           ..write('sha256Hash: $sha256Hash, ')
           ..write('perceptualHash: $perceptualHash, ')
-          ..write('encryptionKeyId: $encryptionKeyId')
+          ..write('encryptionKeyId: $encryptionKeyId, ')
+          ..write('isPinnedOffline: $isPinnedOffline, ')
+          ..write('cloudState: $cloudState')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     filePath,
     thumbnailPath,
@@ -863,7 +939,9 @@ class MediaItem extends DataClass implements Insertable<MediaItem> {
     sha256Hash,
     perceptualHash,
     encryptionKeyId,
-  );
+    isPinnedOffline,
+    cloudState,
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -887,7 +965,9 @@ class MediaItem extends DataClass implements Insertable<MediaItem> {
           other.syncStatus == this.syncStatus &&
           other.sha256Hash == this.sha256Hash &&
           other.perceptualHash == this.perceptualHash &&
-          other.encryptionKeyId == this.encryptionKeyId);
+          other.encryptionKeyId == this.encryptionKeyId &&
+          other.isPinnedOffline == this.isPinnedOffline &&
+          other.cloudState == this.cloudState);
 }
 
 class MediaItemsCompanion extends UpdateCompanion<MediaItem> {
@@ -911,6 +991,8 @@ class MediaItemsCompanion extends UpdateCompanion<MediaItem> {
   final Value<String?> sha256Hash;
   final Value<String?> perceptualHash;
   final Value<String?> encryptionKeyId;
+  final Value<bool> isPinnedOffline;
+  final Value<String> cloudState;
   final Value<int> rowid;
   const MediaItemsCompanion({
     this.id = const Value.absent(),
@@ -933,6 +1015,8 @@ class MediaItemsCompanion extends UpdateCompanion<MediaItem> {
     this.sha256Hash = const Value.absent(),
     this.perceptualHash = const Value.absent(),
     this.encryptionKeyId = const Value.absent(),
+    this.isPinnedOffline = const Value.absent(),
+    this.cloudState = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   MediaItemsCompanion.insert({
@@ -956,6 +1040,8 @@ class MediaItemsCompanion extends UpdateCompanion<MediaItem> {
     this.sha256Hash = const Value.absent(),
     this.perceptualHash = const Value.absent(),
     this.encryptionKeyId = const Value.absent(),
+    this.isPinnedOffline = const Value.absent(),
+    this.cloudState = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        mediaType = Value(mediaType),
@@ -982,6 +1068,8 @@ class MediaItemsCompanion extends UpdateCompanion<MediaItem> {
     Expression<String>? sha256Hash,
     Expression<String>? perceptualHash,
     Expression<String>? encryptionKeyId,
+    Expression<bool>? isPinnedOffline,
+    Expression<String>? cloudState,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1005,6 +1093,8 @@ class MediaItemsCompanion extends UpdateCompanion<MediaItem> {
       if (sha256Hash != null) 'sha256_hash': sha256Hash,
       if (perceptualHash != null) 'perceptual_hash': perceptualHash,
       if (encryptionKeyId != null) 'encryption_key_id': encryptionKeyId,
+      if (isPinnedOffline != null) 'is_pinned_offline': isPinnedOffline,
+      if (cloudState != null) 'cloud_state': cloudState,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1030,6 +1120,8 @@ class MediaItemsCompanion extends UpdateCompanion<MediaItem> {
     Value<String?>? sha256Hash,
     Value<String?>? perceptualHash,
     Value<String?>? encryptionKeyId,
+    Value<bool>? isPinnedOffline,
+    Value<String>? cloudState,
     Value<int>? rowid,
   }) {
     return MediaItemsCompanion(
@@ -1053,6 +1145,8 @@ class MediaItemsCompanion extends UpdateCompanion<MediaItem> {
       sha256Hash: sha256Hash ?? this.sha256Hash,
       perceptualHash: perceptualHash ?? this.perceptualHash,
       encryptionKeyId: encryptionKeyId ?? this.encryptionKeyId,
+      isPinnedOffline: isPinnedOffline ?? this.isPinnedOffline,
+      cloudState: cloudState ?? this.cloudState,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1120,6 +1214,12 @@ class MediaItemsCompanion extends UpdateCompanion<MediaItem> {
     if (encryptionKeyId.present) {
       map['encryption_key_id'] = Variable<String>(encryptionKeyId.value);
     }
+    if (isPinnedOffline.present) {
+      map['is_pinned_offline'] = Variable<bool>(isPinnedOffline.value);
+    }
+    if (cloudState.present) {
+      map['cloud_state'] = Variable<String>(cloudState.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1149,6 +1249,8 @@ class MediaItemsCompanion extends UpdateCompanion<MediaItem> {
           ..write('sha256Hash: $sha256Hash, ')
           ..write('perceptualHash: $perceptualHash, ')
           ..write('encryptionKeyId: $encryptionKeyId, ')
+          ..write('isPinnedOffline: $isPinnedOffline, ')
+          ..write('cloudState: $cloudState, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -2449,6 +2551,8 @@ typedef $$MediaItemsTableCreateCompanionBuilder = MediaItemsCompanion Function({
   Value<String?> sha256Hash,
   Value<String?> perceptualHash,
   Value<String?> encryptionKeyId,
+  Value<bool> isPinnedOffline,
+  Value<String> cloudState,
   Value<int> rowid,
 });
 typedef $$MediaItemsTableUpdateCompanionBuilder = MediaItemsCompanion Function({
@@ -2472,6 +2576,8 @@ typedef $$MediaItemsTableUpdateCompanionBuilder = MediaItemsCompanion Function({
   Value<String?> sha256Hash,
   Value<String?> perceptualHash,
   Value<String?> encryptionKeyId,
+  Value<bool> isPinnedOffline,
+  Value<String> cloudState,
   Value<int> rowid,
 });
 
@@ -2581,6 +2687,16 @@ class $$MediaItemsTableFilterComposer
 
   ColumnFilters<String> get encryptionKeyId => $composableBuilder(
     column: $table.encryptionKeyId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isPinnedOffline => $composableBuilder(
+    column: $table.isPinnedOffline,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get cloudState => $composableBuilder(
+    column: $table.cloudState,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -2693,6 +2809,16 @@ class $$MediaItemsTableOrderingComposer
     column: $table.encryptionKeyId,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<bool> get isPinnedOffline => $composableBuilder(
+    column: $table.isPinnedOffline,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get cloudState => $composableBuilder(
+    column: $table.cloudState,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$MediaItemsTableAnnotationComposer
@@ -2783,6 +2909,16 @@ class $$MediaItemsTableAnnotationComposer
     column: $table.encryptionKeyId,
     builder: (column) => column,
   );
+
+  GeneratedColumn<bool> get isPinnedOffline => $composableBuilder(
+    column: $table.isPinnedOffline,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get cloudState => $composableBuilder(
+    column: $table.cloudState,
+    builder: (column) => column,
+  );
 }
 
 class $$MediaItemsTableTableManager
@@ -2836,6 +2972,8 @@ class $$MediaItemsTableTableManager
                 Value<String?> sha256Hash = const Value.absent(),
                 Value<String?> perceptualHash = const Value.absent(),
                 Value<String?> encryptionKeyId = const Value.absent(),
+                Value<bool> isPinnedOffline = const Value.absent(),
+                Value<String> cloudState = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => MediaItemsCompanion(
                 id: id,
@@ -2858,6 +2996,8 @@ class $$MediaItemsTableTableManager
                 sha256Hash: sha256Hash,
                 perceptualHash: perceptualHash,
                 encryptionKeyId: encryptionKeyId,
+                isPinnedOffline: isPinnedOffline,
+                cloudState: cloudState,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -2882,6 +3022,8 @@ class $$MediaItemsTableTableManager
                 Value<String?> sha256Hash = const Value.absent(),
                 Value<String?> perceptualHash = const Value.absent(),
                 Value<String?> encryptionKeyId = const Value.absent(),
+                Value<bool> isPinnedOffline = const Value.absent(),
+                Value<String> cloudState = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => MediaItemsCompanion.insert(
                 id: id,
@@ -2904,6 +3046,8 @@ class $$MediaItemsTableTableManager
                 sha256Hash: sha256Hash,
                 perceptualHash: perceptualHash,
                 encryptionKeyId: encryptionKeyId,
+                isPinnedOffline: isPinnedOffline,
+                cloudState: cloudState,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

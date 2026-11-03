@@ -24,6 +24,8 @@ class MediaItems extends Table {
   TextColumn get sha256Hash => text().nullable()();
   TextColumn get perceptualHash => text().nullable()();
   TextColumn get encryptionKeyId => text().nullable()();
+  BoolColumn get isPinnedOffline => boolean().withDefault(const Constant(false))();
+  TextColumn get cloudState => text().withDefault(const Constant('LOCAL_ONLY'))();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -175,5 +177,79 @@ class AppDatabase extends _$AppDatabase {
   Future<MediaItem?> getMediaByHash(String hash) {
     return (select(mediaItems)..where((tbl) => tbl.sha256Hash.equals(hash)))
         .getSingleOrNull();
+  }
+
+  Future<MediaItem?> getMediaItem(String id) {
+    return (select(mediaItems)..where((tbl) => tbl.id.equals(id)))
+        .getSingleOrNull();
+  }
+
+  Future<List<MediaItem>> getUnsyncedMedia() {
+    return (select(mediaItems)
+          ..where((tbl) =>
+              tbl.syncStatus.equals('local') & tbl.isTrashed.equals(false)))
+        .get();
+  }
+
+  Future<void> setPinnedOffline(String id, bool pinned) {
+    return (update(mediaItems)..where((tbl) => tbl.id.equals(id)))
+        .write(MediaItemsCompanion(isPinnedOffline: Value(pinned)));
+  }
+
+  Future<void> setCloudState(String id, String state) {
+    return (update(mediaItems)..where((tbl) => tbl.id.equals(id)))
+        .write(MediaItemsCompanion(cloudState: Value(state)));
+  }
+
+  Stream<List<SyncQueueData>> watchPendingSyncTasks() {
+    return (select(syncQueue)
+          ..where((tbl) =>
+              tbl.status.equals('pending') | tbl.status.equals('inProgress'))
+          ..orderBy([
+            (tbl) => OrderingTerm(expression: tbl.priority, mode: OrderingMode.desc),
+            (tbl) => OrderingTerm(expression: tbl.createdAt, mode: OrderingMode.asc)
+          ]))
+        .watch();
+  }
+
+  Future<int> insertSyncTask(SyncQueueCompanion task) {
+    return into(syncQueue).insertOnConflictUpdate(task);
+  }
+
+  Future<void> updateTaskStatus(
+    String id,
+    String status, {
+    String? errorMessage,
+    double? progress,
+    DateTime? lastAttemptAt,
+    int? retryCount,
+  }) {
+    return (update(syncQueue)..where((tbl) => tbl.id.equals(id))).write(
+      SyncQueueCompanion(
+        status: Value(status),
+        errorMessage: errorMessage != null ? Value(errorMessage) : const Value.absent(),
+        progress: progress != null ? Value(progress) : const Value.absent(),
+        lastAttemptAt:
+            lastAttemptAt != null ? Value(lastAttemptAt) : const Value.absent(),
+        retryCount: retryCount != null ? Value(retryCount) : const Value.absent(),
+      ),
+    );
+  }
+
+  Future<int> deleteSyncTask(String id) {
+    return (delete(syncQueue)..where((tbl) => tbl.id.equals(id))).go();
+  }
+
+  Future<List<MediaItem>> getEvictableCacheItems(int limit) {
+    return (select(mediaItems)
+          ..where((tbl) =>
+              tbl.syncStatus.equals('synced') &
+              tbl.isPinnedOffline.equals(false) &
+              tbl.filePath.isNotNull())
+          ..orderBy([
+            (tbl) => OrderingTerm(expression: tbl.dateAdded, mode: OrderingMode.asc)
+          ])
+          ..limit(limit))
+        .get();
   }
 }
