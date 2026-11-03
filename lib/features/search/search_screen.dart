@@ -178,7 +178,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                           itemCount: items.length,
                           itemBuilder: (context, index) {
                             final item = items[index];
-                            return _buildGridTile(item);
+                            // This code for rendering each search result tile with swipe context
+                            return _buildGridTile(item, items, index);
                           },
                         ),
                       ),
@@ -253,16 +254,22 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     );
   }
 
-  // This code for rendering an individual media item tile in search results
-  Widget _buildGridTile(MediaItem item) {
+  // This code for rendering an individual media item tile in search results with swipe capability
+  Widget _buildGridTile(
+      MediaItem item, List<MediaItem> allResults, int index) {
     final date = item.dateTaken ?? item.dateAdded;
     final isDocument = item.mediaType != 'image' && item.mediaType != 'video';
 
     return GestureDetector(
       onTap: () {
+        // This code for opening media viewer with list of matching search results
         Navigator.of(context).push(
           CupertinoPageRoute(
-            builder: (_) => MediaViewerScreen(item: item),
+            builder: (_) => MediaViewerScreen(
+              item: item,
+              items: allResults,
+              initialIndex: index,
+            ),
           ),
         );
       },

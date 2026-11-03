@@ -157,9 +157,14 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                 final item = items[index];
                 return GestureDetector(
                   onTap: () {
+                    // This code for opening media viewer with swipeable album items
                     Navigator.of(context).push(
                       CupertinoPageRoute(
-                        builder: (_) => MediaViewerScreen(item: item),
+                        builder: (_) => MediaViewerScreen(
+                          item: item,
+                          items: items,
+                          initialIndex: index,
+                        ),
                       ),
                     );
                   },

@@ -160,7 +160,8 @@ class SyncEngine {
         return;
       }
 
-      final topicId = _tdlib.topicMap[1] ?? 1;
+      // This code for resolving destination Telegram forum topic based on media type and category
+      final topicId = _tdlib.getTopicIdForCategory(media.mediaType);
       final message = await _tdlib.uploadMedia(
         filePath: media.filePath!,
         mediaType: media.mediaType,

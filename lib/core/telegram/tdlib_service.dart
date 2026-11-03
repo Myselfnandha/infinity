@@ -47,8 +47,31 @@ class TdlibService {
   int? _vaultChatId;
   int? get vaultChatId => _vaultChatId;
 
+  // This code for caching forum topic thread IDs mapped by topic name
   final Map<int, int> _topicMap = {};
   Map<int, int> get topicMap => Map.unmodifiable(_topicMap);
+
+  // This code for mapping topic names (Photos, Videos, Files, etc.) to their Telegram messageThreadIds
+  final Map<String, int> _namedTopicMap = {};
+  Map<String, int> get namedTopicMap => Map.unmodifiable(_namedTopicMap);
+
+  // This code for resolving Telegram topic ID by media category or album name
+  int getTopicIdForCategory(String category) {
+    final lower = category.toLowerCase();
+    if (lower.contains('video')) {
+      return _namedTopicMap['Videos'] ?? _topicMap.values.firstOrNull ?? 1;
+    } else if (lower.contains('screen')) {
+      return _namedTopicMap['Screenshots'] ?? _topicMap.values.firstOrNull ?? 1;
+    } else if (lower.contains('file') ||
+        lower.contains('doc') ||
+        lower.contains('pdf') ||
+        lower.contains('zip')) {
+      return _namedTopicMap['Files'] ?? _topicMap.values.firstOrNull ?? 1;
+    } else if (lower.contains('trash')) {
+      return _namedTopicMap['Trash'] ?? _topicMap.values.firstOrNull ?? 1;
+    }
+    return _namedTopicMap['Photos'] ?? _topicMap.values.firstOrNull ?? 1;
+  }
 
   final Map<String, Completer<TdObject>> _pendingRequests = {};
   final Random _random = Random();
@@ -288,7 +311,9 @@ class TdlibService {
     );
 
     if (res is ForumTopicInfo) {
+      // This code for recording both raw thread ID and named mapping for the created forum topic
       _topicMap[res.messageThreadId] = res.messageThreadId;
+      _namedTopicMap[name] = res.messageThreadId;
       return res.messageThreadId;
     }
     return null;

@@ -270,35 +270,12 @@ class _PhotosTimelineScreenState extends ConsumerState<PhotosTimelineScreen> {
                     child: CustomScrollView(
                       slivers: [
                         for (final entry in grouped.entries) ...[
-                          SliverToBoxAdapter(
-                            child: Padding(
-                              padding: const EdgeInsets.only(
-                                left: 14,
-                                top: 18,
-                                bottom: 6,
-                                right: 14,
-                              ),
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    entry.key,
-                                    style: const TextStyle(
-                                      fontSize: 17,
-                                      fontWeight: FontWeight.bold,
-                                      color: CupertinoColors.label,
-                                    ),
-                                  ),
-                                  Text(
-                                    '${entry.value.length}',
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      color: CupertinoColors.secondaryLabel,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                          // This code for pinning date header under navigation bar during scrolling
+                          SliverPersistentHeader(
+                            pinned: true,
+                            delegate: _StickyTimelineHeaderDelegate(
+                              dateTitle: entry.key,
+                              itemCount: entry.value.length,
                             ),
                           ),
                           SliverPadding(
@@ -327,10 +304,17 @@ class _PhotosTimelineScreenState extends ConsumerState<PhotosTimelineScreen> {
                                       if (_isSelectionMode) {
                                         _toggleItemSelection(item.id);
                                       } else {
+                                        // This code for launching full-screen media viewer with swipeable items list
                                         Navigator.of(context).push(
                                           CupertinoPageRoute(
-                                            builder: (_) =>
-                                                MediaViewerScreen(item: item),
+                                            builder: (_) => MediaViewerScreen(
+                                              item: item,
+                                              items: items,
+                                              initialIndex:
+                                                  items.contains(item)
+                                                      ? items.indexOf(item)
+                                                      : 0,
+                                            ),
                                           ),
                                         );
                                       }
@@ -536,5 +520,61 @@ class _PhotosTimelineScreenState extends ConsumerState<PhotosTimelineScreen> {
         ),
       ),
     );
+  }
+}
+
+// This code for rendering pinned iOS-style sticky date headers in the photos timeline
+class _StickyTimelineHeaderDelegate extends SliverPersistentHeaderDelegate {
+  final String dateTitle;
+  final int itemCount;
+
+  const _StickyTimelineHeaderDelegate({
+    required this.dateTitle,
+    required this.itemCount,
+  });
+
+  @override
+  double get minExtent => 42.0;
+
+  @override
+  double get maxExtent => 42.0;
+
+  @override
+  Widget build(
+      BuildContext context, double shrinkOffset, bool overlapsContent) {
+    // This code for adapting header blur and background color based on active system theme
+    return Container(
+      color: CupertinoColors.systemBackground
+          .resolveFrom(context)
+          .withValues(alpha: 0.96),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      alignment: Alignment.centerLeft,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            dateTitle,
+            style: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.bold,
+              color: CupertinoColors.label,
+            ),
+          ),
+          Text(
+            '$itemCount',
+            style: const TextStyle(
+              fontSize: 13,
+              color: CupertinoColors.secondaryLabel,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _StickyTimelineHeaderDelegate oldDelegate) {
+    return oldDelegate.dateTitle != dateTitle ||
+        oldDelegate.itemCount != itemCount;
   }
 }

@@ -69,9 +69,14 @@ class FavoritesScreen extends ConsumerWidget {
                 final item = items[index];
                 return GestureDetector(
                   onTap: () {
+                    // This code for opening media viewer with swipeable favorite items
                     Navigator.of(context).push(
                       CupertinoPageRoute(
-                        builder: (_) => MediaViewerScreen(item: item),
+                        builder: (_) => MediaViewerScreen(
+                          item: item,
+                          items: items,
+                          initialIndex: index,
+                        ),
                       ),
                     );
                   },

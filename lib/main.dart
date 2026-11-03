@@ -101,8 +101,8 @@ class _InfinityAppState extends ConsumerState<InfinityApp>
       title: 'Infinity',
       debugShowCheckedModeBanner: false,
       routerConfig: _router!,
+      // This code for applying system-adaptive Cupertino theme matching host device light/dark mode
       theme: const CupertinoThemeData(
-        brightness: Brightness.light,
         primaryColor: CupertinoColors.activeBlue,
       ),
       builder: (context, child) {
