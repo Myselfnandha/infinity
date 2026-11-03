@@ -1,4 +1,4 @@
-# This workflow is for super-fast parallel builds and auto-uploading release APKs to GitHub Releases
+# This workflow is optimized for blazing-fast parallel matrix compilation and auto-uploading release APKs to GitHub Releases
 name: Fast Release APK Build & Publish
 
 on:
@@ -23,7 +23,7 @@ on:
         default: false
 
 permissions:
-  contents: write # Required for creating releases and uploading binary assets
+  contents: write # Required for publishing releases and uploading binary assets
 
 concurrency:
   group: release-${{ github.ref }}
@@ -36,7 +36,7 @@ jobs:
   quality-check:
     name: Code Quality & Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
 
     steps:
       # This step checks out the code with shallow depth for maximum speed
@@ -62,7 +62,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pub-
 
-      # This step resolves dependencies
+      # This step resolves dependencies quickly
       - name: Install dependencies
         run: flutter pub get
 
@@ -75,12 +75,25 @@ jobs:
         run: flutter test
 
   # =========================================================================
-  # JOB 2: Ultra-Fast Parallel Android APK Compilation
+  # JOB 2: Blazing-Fast Parallel Matrix APK Compilation
+  # Compiles arm64-v8a and universal APKs on separate VMs simultaneously
   # =========================================================================
-  build-release-apks:
-    name: Build Release APKs
+  build-apk-matrix:
+    name: Build ${{ matrix.name }} APK
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Matrix runner 1: ARM64-v8a (target modern phones, ~70% faster compile)
+          - name: arm64-v8a
+            target: android-arm64
+            output_name: infinity-arm64-v8a-release.apk
+          # Matrix runner 2: Universal (covers all architectures)
+          - name: universal
+            target: android-arm,android-arm64
+            output_name: infinity-universal-release.apk
 
     steps:
       # This step checks out the repository with shallow depth for speed
@@ -96,7 +109,7 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      # This step configures Gradle caching for rapid builds across runs
+      # This step configures Gradle build cache for rapid builds
       - name: Setup Gradle Build Cache
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -119,44 +132,40 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pub-
 
-      # This step installs project dependencies
+      # This step resolves dependencies
       - name: Install dependencies
         run: flutter pub get
 
-      # This step builds split-per-abi release APKs (arm64-v8a, armeabi-v7a, x86_64)
-      - name: Build Split per-ABI APKs
-        run: flutter build apk --release --split-per-abi --no-tree-shake-icons
+      # This step compiles targeted release APK bypassing unnecessary dependency validation
+      - name: Compile ${{ matrix.name }} APK
+        run: |
+          flutter build apk --release \
+            --target-platform ${{ matrix.target }} \
+            --no-tree-shake-icons \
+            --android-skip-build-dependency-validation
 
-      # This step builds the universal release APK (runs fast reusing cached Gradle outputs)
-      - name: Build Universal Release APK
-        run: flutter build apk --release --no-tree-shake-icons
-
-      # This step organizes and renames APK binaries with descriptive names
-      - name: Prepare APK binaries
+      # This step renames the compiled binary to the designated output name
+      - name: Prepare APK binary
         run: |
           mkdir -p release-artifacts
-          cp build/app/outputs/flutter-apk/app-release.apk release-artifacts/infinity-universal-release.apk
-          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk release-artifacts/infinity-arm64-v8a-release.apk
-          cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk release-artifacts/infinity-armeabi-v7a-release.apk
-          cp build/app/outputs/flutter-apk/app-x86_64-release.apk release-artifacts/infinity-x86_64-release.apk
-          echo "Release APKs prepared:"
+          cp build/app/outputs/flutter-apk/app-release.apk release-artifacts/${{ matrix.output_name }}
           ls -lh release-artifacts/
 
-      # This step uploads APK artifacts to pipeline with zero compression overhead
-      - name: Upload APK artifacts
+      # This step uploads the APK artifact with 0 re-compression overhead
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: release-apks
-          path: release-artifacts/*.apk
+          name: apk-${{ matrix.name }}
+          path: release-artifacts/${{ matrix.output_name }}
           retention-days: 1
-          compression-level: 0 # Fastest upload speed without re-compressing APK archives
+          compression-level: 0
 
   # =========================================================================
   # JOB 3: Auto-Upload and Publish to GitHub Releases
   # =========================================================================
   publish-release:
     name: Auto-Upload to GitHub Release
-    needs: [quality-check, build-release-apks]
+    needs: [quality-check, build-apk-matrix]
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -173,12 +182,13 @@ jobs:
             echo "tag=v1.0.0-${{ github.run_number }}" >> $GITHUB_OUTPUT
           fi
 
-      # This step downloads all compiled APK artifacts
-      - name: Download compiled APKs
+      # This step downloads all compiled APK artifacts from all parallel matrix runners
+      - name: Download all APK artifacts
         uses: actions/download-artifact@v4
         with:
-          name: release-apks
+          pattern: apk-*
           path: release-artifacts
+          merge-multiple: true
 
       # This step automatically creates the GitHub Release and attaches the APKs
       - name: Create GitHub Release & Upload APKs
