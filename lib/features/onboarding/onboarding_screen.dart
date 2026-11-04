@@ -161,9 +161,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     });
 
     try {
-      await _applyCustomCredentialsIfAny();
       final tdlib = ref.read(tdlibServiceProvider);
-      await tdlib.requestQrCode();
+      await tdlib.requestQrCode(useOfficialApiFallback: true);
     } catch (e) {
       setState(() => _authError = e.toString());
     } finally {

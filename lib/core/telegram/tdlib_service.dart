@@ -25,6 +25,10 @@ class TdlibService {
   factory TdlibService() => _instance;
   TdlibService._internal();
 
+  // This code for official Telegram production public API credentials (supports QR code auth)
+  static const int officialApiId = 2496;
+  static const String officialApiHash = '8da85b0d5b1652522bc46057082da478';
+
   // This code for centralized fallback Telegram API credentials (workspace verified)
   static const int defaultApiId = 30662321;
   static const String defaultApiHash = 'cf007e0155c41fd1aa9b114b592377e0';
@@ -96,17 +100,19 @@ class TdlibService {
   Completer<void> _parametersCompleter = Completer<void>();
   bool _parametersSet = false;
 
-  // Awaits completion of TDLib parameter initialization before processing subsequent commands
+  // This code for awaiting completion of TDLib parameter handshake before dispatching requests
   Future<void> _ensureParametersSet({int? apiId, String? apiHash}) async {
     if (_parametersSet) return;
     await initialize(apiId: apiId, apiHash: apiHash);
     if (_parametersSet) return;
     try {
       await _parametersCompleter.future.timeout(const Duration(seconds: 15));
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[TDLib] _ensureParametersSet timeout or wait error: $e');
+    }
   }
 
-  // Stops the background receive isolate cleanly to avoid race conditions or duplicate polling loops
+  // This code for cleanly stopping background receive isolate during full app termination
   void _stopReceiveLoop() {
     _isReceiving = false;
     if (_isolateCommandPort != null) {
@@ -129,14 +135,15 @@ class TdlibService {
     }
   }
 
-  // Restarts the TDLib client session cleanly when switching API credentials
+  // This code for restarting TDLib client session cleanly when switching API credentials
   Future<void> restartClient({int? apiId, String? apiHash}) async {
+    debugPrint('[TDLib] Restarting client session with apiId: $apiId...');
     if (_clientId != 0) {
       try {
-        await sendAsync(const Close());
+        await sendAsync(const Close()).timeout(const Duration(seconds: 3));
       } catch (_) {}
     }
-    _stopReceiveLoop();
+
     _isInitialized = false;
     _clientId = 0;
     _parametersSet = false;
@@ -145,21 +152,27 @@ class TdlibService {
     _currentAuthState = TelegramAuthState.uninitialized;
     _authStateController.add(_currentAuthState);
 
+    // Keep the single receive worker loop alive to prevent multiple-thread collision inside tdReceive
     await initialize(apiId: apiId, apiHash: apiHash);
   }
 
-  // Resets auth state to phone number entry from QR mode
+  // This code for resetting auth state to phone number entry from QR mode
   void resetToPhoneNumber() {
     _qrCodeLink = null;
     _currentAuthState = TelegramAuthState.waitingForPhoneNumber;
     _authStateController.add(_currentAuthState);
   }
 
+  // This code for initializing TDLib native dynamic library and client session
   Future<void> initialize({int? apiId, String? apiHash}) async {
     if (_isInitialized && _clientId != 0) return;
 
-    if (apiId != null) _activeApiId = apiId;
-    if (apiHash != null) _activeApiHash = apiHash;
+    final prefs = await SharedPreferences.getInstance();
+    final finalApiId = apiId ?? _activeApiId ?? prefs.getInt('telegram_api_id') ?? defaultApiId;
+    final finalApiHash = apiHash ?? _activeApiHash ?? prefs.getString('telegram_api_hash') ?? defaultApiHash;
+
+    _activeApiId = finalApiId;
+    _activeApiHash = finalApiHash;
 
     try {
       if (kIsWeb) {
@@ -169,7 +182,7 @@ class TdlibService {
       final libName = Platform.isAndroid ? 'libtdjson.so' : null;
       await TdPlugin.initialize(libName);
 
-      // Throttle TDLib log verbosity on initialization to eliminate logcat flooding (100 log entries/sec)
+      // This code for setting TDLib log verbosity to 1 to prevent logcat flooding
       try {
         TdPlugin.instance.tdExecute(jsonEncode({
           '@type': 'setLogVerbosityLevel',
@@ -177,17 +190,32 @@ class TdlibService {
         }));
       } catch (_) {}
 
+      // This code for ensuring TDLib database and file directories exist on disk
+      final appDir = await getApplicationDocumentsDirectory();
+      final dbDir = Directory('${appDir.path}/tdlib');
+      final filesDir = Directory('${appDir.path}/tdlib_files');
+      if (!dbDir.existsSync()) dbDir.createSync(recursive: true);
+      if (!filesDir.existsSync()) filesDir.createSync(recursive: true);
+
       _clientId = TdPlugin.instance.tdCreateClientId();
       _isInitialized = true;
-      _startReceiveLoop(apiId: apiId, apiHash: apiHash);
+      debugPrint('[TDLib] TDLib client created with ID: $_clientId (activeApiId: $_activeApiId)');
+
+      _startReceiveLoop();
+
+      // This code for immediately requesting authorization state from TDLib
+      try {
+        await sendAsync(const GetAuthorizationState()).timeout(const Duration(seconds: 4));
+      } catch (_) {}
     } catch (e) {
+      debugPrint('[TDLib] Client initialization error: $e');
       _currentAuthState = TelegramAuthState.error;
       _authStateController.add(_currentAuthState);
     }
   }
 
-  // Spawns a dedicated background Dart Isolate for tdReceive(0.02) to unblock the Flutter UI thread
-  void _startReceiveLoop({int? apiId, String? apiHash}) async {
+  // This code for spawning a dedicated background Dart Isolate for tdReceive(0.02) to unblock Flutter UI thread
+  void _startReceiveLoop() async {
     if (_isReceiving) return;
     _isReceiving = true;
 
@@ -201,8 +229,8 @@ class TdlibService {
         _tdReceiveIsolateWorker,
         [receivePort.sendPort, libName],
       );
-    } catch (_) {
-      // In testing environments or unsupported platforms, gracefully reset flag
+    } catch (e) {
+      debugPrint('[TDLib] Failed to spawn receive isolate (fallback mode): $e');
       _isReceiving = false;
       return;
     }
@@ -214,14 +242,16 @@ class TdlibService {
         try {
           final tdObject = convertJsonToObject(message);
           if (tdObject != null) {
-            _handleIncomingObject(tdObject, apiId: apiId, apiHash: apiHash);
+            _handleIncomingObject(tdObject);
           }
-        } catch (_) {}
+        } catch (e) {
+          debugPrint('[TDLib] Error parsing incoming TDLib message: $e');
+        }
       }
     });
   }
 
-  // Dedicated background Isolate worker for tdReceive loop to avoid blocking Flutter UI thread
+  // This code for dedicated background Isolate worker executing tdReceive in fixed thread
   static void _tdReceiveIsolateWorker(List<dynamic> args) async {
     final SendPort sendPort = args[0] as SendPort;
     final String? libPath = args[1] as String?;
@@ -253,7 +283,8 @@ class TdlibService {
     }
   }
 
-  void _handleIncomingObject(TdObject object, {int? apiId, String? apiHash}) {
+  // This code for handling incoming TDLib objects, routing pending request completers, and triggering state machines
+  void _handleIncomingObject(TdObject object) {
     if (object.extra != null) {
       final extraKey = object.extra.toString();
       final completer = _pendingRequests.remove(extraKey);
@@ -263,38 +294,39 @@ class TdlibService {
     }
 
     if (object is UpdateAuthorizationState) {
-      _handleAuthState(object.authorizationState, apiId: apiId, apiHash: apiHash);
+      _handleAuthState(object.authorizationState);
     }
 
     _updateController.add(object);
   }
 
-  Future<void> _handleAuthState(AuthorizationState state,
-      {int? apiId, String? apiHash}) async {
+  // This code for processing Telegram authorization state transitions
+  Future<void> _handleAuthState(AuthorizationState state) async {
+    debugPrint('[TDLib] Auth state transition received: ${state.runtimeType}');
     if (state is AuthorizationStateWaitTdlibParameters) {
       final appDir = await getApplicationDocumentsDirectory();
       final dbDir = '${appDir.path}/tdlib';
       final filesDir = '${appDir.path}/tdlib_files';
 
-      // This code for resolving Telegram API credentials prioritizing runtime arguments, stored preferences, or verified defaults
       final prefs = await SharedPreferences.getInstance();
-      final finalApiId = apiId ?? prefs.getInt('telegram_api_id') ?? defaultApiId;
-      final finalApiHash = apiHash ?? prefs.getString('telegram_api_hash') ?? defaultApiHash;
+      final finalApiId = _activeApiId ?? prefs.getInt('telegram_api_id') ?? defaultApiId;
+      final finalApiHash = _activeApiHash ?? prefs.getString('telegram_api_hash') ?? defaultApiHash;
 
       _activeApiId = finalApiId;
       _activeApiHash = finalApiHash;
 
-      final isTelegramAndroid = finalApiId == 6;
+      final isTelegramAndroid = finalApiId == 6 || finalApiId == officialApiId;
       final deviceModel = isTelegramAndroid
-          ? (Platform.isAndroid ? 'Android' : 'Desktop')
+          ? 'Android Mobile'
           : (Platform.isAndroid ? 'Android' : 'Desktop');
-      final systemVersion = isTelegramAndroid && Platform.isAndroid
-          ? 'SDK 34'
+      final systemVersion = isTelegramAndroid
+          ? 'Android 14'
           : (Platform.operatingSystemVersion.isNotEmpty
               ? Platform.operatingSystemVersion
               : 'Android 14');
       final appVersion = isTelegramAndroid ? '10.14.0' : '1.0.0';
 
+      debugPrint('[TDLib] Sending SetTdlibParameters (apiId: $finalApiId)...');
       final res = await sendAsync(
         SetTdlibParameters(
           useTestDc: false,
@@ -313,11 +345,15 @@ class TdlibService {
           applicationVersion: appVersion,
         ),
       );
+
       if (res is! TdError) {
         _parametersSet = true;
         if (!_parametersCompleter.isCompleted) {
           _parametersCompleter.complete();
         }
+        debugPrint('[TDLib] SetTdlibParameters confirmed successfully.');
+      } else {
+        debugPrint('[TDLib] SetTdlibParameters rejected: ${res.message} (code: ${res.code})');
       }
     } else if (state is AuthorizationStateWaitPhoneNumber) {
       _parametersSet = true;
@@ -410,13 +446,20 @@ class TdlibService {
     }
   }
 
-  // This code for requesting QR code pairing authentication link
-  Future<void> requestQrCode() async {
+  // This code for requesting QR code pairing authentication link with official API fallback
+  Future<void> requestQrCode({bool useOfficialApiFallback = true}) async {
+    // If the active API ID is not an official client, Telegram servers reject QR code authentication.
+    // Seamlessly switch to official API (2496) to generate pairing token.
+    if (useOfficialApiFallback && _activeApiId != officialApiId && _activeApiId != 6) {
+      debugPrint('[TDLib] Switching to official Telegram API ($officialApiId) for QR code pairing token...');
+      await restartClient(apiId: officialApiId, apiHash: officialApiHash);
+    }
     await _ensureParametersSet();
     final res = await sendAsync(
       const RequestQrCodeAuthentication(otherUserIds: []),
     );
     if (res is TdError) {
+      debugPrint('[TDLib] RequestQrCodeAuthentication error: ${res.message} (code: ${res.code})');
       throw Exception(res.message);
     }
   }

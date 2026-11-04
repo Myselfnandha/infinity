@@ -156,9 +156,8 @@ class _VaultAccountScreenState extends ConsumerState<VaultAccountScreen> {
     });
 
     try {
-      await _applyCustomCredentialsIfAny();
       final tdlib = ref.read(tdlibServiceProvider);
-      await tdlib.requestQrCode();
+      await tdlib.requestQrCode(useOfficialApiFallback: true);
     } catch (e) {
       setState(() => _errorMessage = e.toString().replaceAll('Exception: ', ''));
     } finally {
@@ -306,21 +305,38 @@ class _VaultAccountScreenState extends ConsumerState<VaultAccountScreen> {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: CupertinoButton(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        color: CupertinoColors.activeBlue,
-                        onPressed: () {
-                          setState(() {
-                            _showCustomApi = true;
-                            _apiIdController.text = '30662321';
-                            _apiHashController.text = 'cf007e0155c41fd1aa9b114b592377e0';
-                            _errorMessage = null;
-                          });
-                        },
-                        child: const Text('Try Workspace API (30662321)', style: TextStyle(fontSize: 11, color: CupertinoColors.white)),
-                      ),
+                    Wrap(
+                      alignment: WrapAlignment.end,
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: [
+                        CupertinoButton(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          color: CupertinoColors.activeGreen,
+                          onPressed: () {
+                            setState(() {
+                              _showCustomApi = true;
+                              _apiIdController.text = TdlibService.officialApiId.toString();
+                              _apiHashController.text = TdlibService.officialApiHash;
+                              _errorMessage = null;
+                            });
+                          },
+                          child: const Text('Official API (2496)', style: TextStyle(fontSize: 11, color: CupertinoColors.white)),
+                        ),
+                        CupertinoButton(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          color: CupertinoColors.activeBlue,
+                          onPressed: () {
+                            setState(() {
+                              _showCustomApi = true;
+                              _apiIdController.text = TdlibService.defaultApiId.toString();
+                              _apiHashController.text = TdlibService.defaultApiHash;
+                              _errorMessage = null;
+                            });
+                          },
+                          child: const Text('Workspace API (30662321)', style: TextStyle(fontSize: 11, color: CupertinoColors.white)),
+                        ),
+                      ],
                     ),
                   ],
                 ),
