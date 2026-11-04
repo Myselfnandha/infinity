@@ -15,6 +15,8 @@ class AppPreferences {
   static const String keyDownloadCompression = 'media_download_compression';
   static const String keyPlaybackOptimized = 'media_playback_optimized';
   static const String keySyncScheduleFrequency = 'sync_schedule_frequency';
+  static const String keyTelegramApiId = 'telegram_api_id';
+  static const String keyTelegramApiHash = 'telegram_api_hash';
 
   final SharedPreferences _prefs;
 
@@ -107,4 +109,18 @@ class AppPreferences {
 
   Future<bool> setBackupFolderIds(List<String> folderIds) =>
       _prefs.setStringList(keyBackupFolders, folderIds);
+
+  // This code for getting user configured Telegram API ID
+  int? get telegramApiId => _prefs.getInt(keyTelegramApiId);
+
+  // This code for setting user configured Telegram API ID
+  Future<bool> setTelegramApiId(int? id) =>
+      id == null ? _prefs.remove(keyTelegramApiId) : _prefs.setInt(keyTelegramApiId, id);
+
+  // This code for getting user configured Telegram API Hash
+  String? get telegramApiHash => _prefs.getString(keyTelegramApiHash);
+
+  // This code for setting user configured Telegram API Hash
+  Future<bool> setTelegramApiHash(String? hash) =>
+      hash == null ? _prefs.remove(keyTelegramApiHash) : _prefs.setString(keyTelegramApiHash, hash);
 }

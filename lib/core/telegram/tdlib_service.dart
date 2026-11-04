@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:handy_tdlib_next/handy_tdlib_next.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 enum TelegramAuthState {
   uninitialized,
@@ -162,8 +163,10 @@ class TdlibService {
       final dbDir = '${appDir.path}/tdlib';
       final filesDir = '${appDir.path}/tdlib_files';
 
-      final finalApiId = apiId ?? 2496;
-      final finalApiHash = apiHash ?? '8da85b0d5b1652522bc46057082da478';
+      // This code for resolving Telegram API credentials from configured arguments or preferences
+      final prefs = await SharedPreferences.getInstance();
+      final finalApiId = apiId ?? prefs.getInt('telegram_api_id') ?? 2496;
+      final finalApiHash = apiHash ?? prefs.getString('telegram_api_hash') ?? '8da85b0d5b1652522bc46057082da478';
 
       final res = await sendAsync(
         SetTdlibParameters(

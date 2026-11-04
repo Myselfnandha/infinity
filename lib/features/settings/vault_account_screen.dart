@@ -18,16 +18,50 @@ class _VaultAccountScreenState extends ConsumerState<VaultAccountScreen> {
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _codeController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  // This code for custom Telegram API credentials configuration
+  final TextEditingController _apiIdController = TextEditingController();
+  final TextEditingController _apiHashController = TextEditingController();
+  bool _showCustomApi = false;
 
   bool _isLoading = false;
   String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final prefs = ref.read(preferencesProvider);
+      if (prefs.telegramApiId != null) {
+        _apiIdController.text = prefs.telegramApiId.toString();
+      }
+      if (prefs.telegramApiHash != null) {
+        _apiHashController.text = prefs.telegramApiHash!;
+      }
+    });
+  }
 
   @override
   void dispose() {
     _phoneController.dispose();
     _codeController.dispose();
     _passwordController.dispose();
+    _apiIdController.dispose();
+    _apiHashController.dispose();
     super.dispose();
+  }
+
+  // This code for applying user entered Telegram API credentials before initiating authentication
+  Future<void> _applyCustomCredentialsIfAny() async {
+    final prefs = ref.read(preferencesProvider);
+    final idText = _apiIdController.text.trim();
+    final hashText = _apiHashController.text.trim();
+    if (idText.isNotEmpty) {
+      final id = int.tryParse(idText);
+      if (id != null) await prefs.setTelegramApiId(id);
+    }
+    if (hashText.isNotEmpty) {
+      await prefs.setTelegramApiHash(hashText);
+    }
   }
 
   // This code for submitting phone number to initiate TDLib authentication
@@ -44,6 +78,7 @@ class _VaultAccountScreenState extends ConsumerState<VaultAccountScreen> {
     });
 
     try {
+      await _applyCustomCredentialsIfAny();
       final tdlib = ref.read(tdlibServiceProvider);
       await tdlib.sendPhoneNumber(phone);
     } catch (e) {
@@ -113,6 +148,7 @@ class _VaultAccountScreenState extends ConsumerState<VaultAccountScreen> {
     });
 
     try {
+      await _applyCustomCredentialsIfAny();
       final tdlib = ref.read(tdlibServiceProvider);
       await tdlib.requestQrCode();
     } catch (e) {
@@ -384,6 +420,30 @@ class _VaultAccountScreenState extends ConsumerState<VaultAccountScreen> {
                         onPressed: _isLoading ? null : _requestQrCode,
                         child: const Text('Log In via QR Code'),
                       ),
+                      const SizedBox(height: 4),
+                      // This code for toggling custom Telegram API credentials input
+                      CupertinoButton(
+                        onPressed: () => setState(() => _showCustomApi = !_showCustomApi),
+                        child: Text(
+                          _showCustomApi ? 'Hide API Configuration' : 'Custom Telegram API Credentials (Optional)',
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                      ),
+                      if (_showCustomApi) ...[
+                        const SizedBox(height: 8),
+                        CupertinoTextField(
+                          controller: _apiIdController,
+                          placeholder: 'Telegram API ID (from my.telegram.org)',
+                          keyboardType: TextInputType.number,
+                          padding: const EdgeInsets.all(12),
+                        ),
+                        const SizedBox(height: 8),
+                        CupertinoTextField(
+                          controller: _apiHashController,
+                          placeholder: 'Telegram API Hash (hex string)',
+                          padding: const EdgeInsets.all(12),
+                        ),
+                      ],
                     ],
                   ],
                 ),

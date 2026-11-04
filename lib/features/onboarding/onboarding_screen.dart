@@ -22,6 +22,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _codeController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  // This code for custom Telegram API credentials configuration
+  final TextEditingController _apiIdController = TextEditingController();
+  final TextEditingController _apiHashController = TextEditingController();
+  bool _showCustomApi = false;
 
   int _currentPage = 0;
   bool _isLoading = false;
@@ -37,11 +41,27 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   bool _biometricEnabled = false;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final prefs = ref.read(preferencesProvider);
+      if (prefs.telegramApiId != null) {
+        _apiIdController.text = prefs.telegramApiId.toString();
+      }
+      if (prefs.telegramApiHash != null) {
+        _apiHashController.text = prefs.telegramApiHash!;
+      }
+    });
+  }
+
+  @override
   void dispose() {
     _pageController.dispose();
     _phoneController.dispose();
     _codeController.dispose();
     _passwordController.dispose();
+    _apiIdController.dispose();
+    _apiHashController.dispose();
     super.dispose();
   }
 
@@ -50,6 +70,20 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOut,
     );
+  }
+
+  // This code for applying user entered Telegram API credentials before initiating authentication
+  Future<void> _applyCustomCredentialsIfAny() async {
+    final prefs = ref.read(preferencesProvider);
+    final idText = _apiIdController.text.trim();
+    final hashText = _apiHashController.text.trim();
+    if (idText.isNotEmpty) {
+      final id = int.tryParse(idText);
+      if (id != null) await prefs.setTelegramApiId(id);
+    }
+    if (hashText.isNotEmpty) {
+      await prefs.setTelegramApiHash(hashText);
+    }
   }
 
   Future<void> _submitPhone() async {
@@ -62,6 +96,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     });
 
     try {
+      await _applyCustomCredentialsIfAny();
       final tdlib = ref.read(tdlibServiceProvider);
       await tdlib.sendPhoneNumber(phone);
     } catch (e) {
@@ -118,6 +153,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     });
 
     try {
+      await _applyCustomCredentialsIfAny();
       final tdlib = ref.read(tdlibServiceProvider);
       await tdlib.requestQrCode();
     } catch (e) {
@@ -384,6 +420,30 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               child: const Text('Log In via QR Code'),
             ),
             const SizedBox(height: 6),
+            // This code for toggling custom Telegram API credentials input
+            CupertinoButton(
+              onPressed: () => setState(() => _showCustomApi = !_showCustomApi),
+              child: Text(
+                _showCustomApi ? 'Hide API Configuration' : 'Custom Telegram API (Optional)',
+                style: const TextStyle(fontSize: 13),
+              ),
+            ),
+            if (_showCustomApi) ...[
+              const SizedBox(height: 8),
+              CupertinoTextField(
+                controller: _apiIdController,
+                placeholder: 'API ID (from my.telegram.org)',
+                keyboardType: TextInputType.number,
+                padding: const EdgeInsets.all(12),
+              ),
+              const SizedBox(height: 8),
+              CupertinoTextField(
+                controller: _apiHashController,
+                placeholder: 'API Hash (hex string)',
+                padding: const EdgeInsets.all(12),
+              ),
+              const SizedBox(height: 8),
+            ],
             CupertinoButton(
               onPressed: _nextPage,
               child: const Text('Configure Later'),
