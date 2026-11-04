@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:photo_manager/photo_manager.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/di/providers.dart';
 import '../../core/storage/gallery_service.dart';
 import '../../core/telegram/tdlib_service.dart';
@@ -282,7 +284,57 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             ),
             const SizedBox(height: 16),
           ],
-          if (authState == TelegramAuthState.waitingForCode) ...[
+          if (authState == TelegramAuthState.waitingForQrCode &&
+              ref.watch(tdlibServiceProvider).qrCodeLink != null) ...[
+            // This code for rendering interactive QR code pairing modal
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: CupertinoColors.white,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: QrImageView(
+                data: ref.watch(tdlibServiceProvider).qrCodeLink!,
+                version: QrVersions.auto,
+                size: 200.0,
+              ),
+            ),
+            const SizedBox(height: 14),
+            const Text(
+              'Scan this QR code with Telegram on another device, or tap below to link directly with Telegram on this phone.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                color: CupertinoColors.secondaryLabel,
+              ),
+            ),
+            const SizedBox(height: 16),
+            CupertinoButton.filled(
+              onPressed: () async {
+                final link = ref.read(tdlibServiceProvider).qrCodeLink;
+                if (link != null) {
+                  final uri = Uri.parse(link);
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  }
+                }
+              },
+              child: const Text('Open in Telegram App'),
+            ),
+            const SizedBox(height: 12),
+            CupertinoButton(
+              onPressed: () {
+                setState(() => _authError = null);
+                ref.read(tdlibServiceProvider).initialize();
+              },
+              child: const Text('Use Phone Number Instead'),
+            ),
+            const SizedBox(height: 6),
+            CupertinoButton(
+              onPressed: _nextPage,
+              child: const Text('Configure Later'),
+            ),
+          ] else if (authState == TelegramAuthState.waitingForCode) ...[
             CupertinoTextField(
               controller: _codeController,
               placeholder: 'Enter 5-digit code',

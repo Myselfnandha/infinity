@@ -48,9 +48,11 @@ final syncEngineProvider = Provider<SyncEngine>((ref) {
   return engine;
 });
 
-final authStateProvider = StreamProvider<TelegramAuthState>((ref) {
+// This code for streaming Telegram authentication state with immediate initial value
+final authStateProvider = StreamProvider<TelegramAuthState>((ref) async* {
   final service = ref.watch(tdlibServiceProvider);
-  return service.authStateStream;
+  yield service.currentAuthState;
+  yield* service.authStateStream;
 });
 
 final allMediaProvider = StreamProvider<List<MediaItem>>((ref) {

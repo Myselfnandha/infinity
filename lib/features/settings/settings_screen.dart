@@ -115,6 +115,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // This code for watching active Telegram vault supergroup connection status
+    final tdlib = ref.watch(tdlibServiceProvider);
+    final isVaultConnected = tdlib.vaultChatId != null;
+
     return CupertinoPageScaffold(
       // This code for clean iOS settings navigation title
       navigationBar: const CupertinoNavigationBar(
@@ -136,12 +140,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
               ),
             ),
-            // This code for Vault & Telegram Account category folder
+            // This code for Vault & Telegram Account category folder with dynamic connection status
             _buildCategoryTile(
               icon: CupertinoIcons.infinite,
-              iconColor: CupertinoColors.activeBlue,
+              iconColor: isVaultConnected
+                  ? CupertinoColors.activeGreen
+                  : CupertinoColors.activeBlue,
               title: 'Vault Account',
-              subtitle: 'Supergroup connection & session details',
+              subtitle: isVaultConnected
+                  ? 'Connected • Infinity Vault Supergroup'
+                  : 'Action Required • Connect Telegram Vault',
               onTap: () {
                 Navigator.of(context).push(
                   CupertinoPageRoute(
@@ -216,14 +224,32 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   : const Text('Manual Scan & Sync Now'),
             ),
             const SizedBox(height: 14),
-            // This code for logging out and disconnecting Telegram session
-            CupertinoButton(
-              onPressed: _logOut,
-              child: const Text(
-                'Log Out from Telegram',
-                style: TextStyle(color: CupertinoColors.destructiveRed),
+            // This code for adaptive Telegram connect or logout action depending on active session
+            if (isVaultConnected)
+              CupertinoButton(
+                onPressed: _logOut,
+                child: const Text(
+                  'Log Out from Telegram',
+                  style: TextStyle(color: CupertinoColors.destructiveRed),
+                ),
+              )
+            else
+              CupertinoButton(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    CupertinoPageRoute(
+                      builder: (_) => const VaultAccountScreen(),
+                    ),
+                  );
+                },
+                child: const Text(
+                  'Connect Telegram Vault',
+                  style: TextStyle(
+                    color: CupertinoColors.activeBlue,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
-            ),
             // This code for providing bottom padding ensuring content clears the translucent Cupertino tab bar
             const SizedBox(height: 84),
           ],
