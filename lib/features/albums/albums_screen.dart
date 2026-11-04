@@ -61,9 +61,7 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final tdlib = ref.watch(tdlibServiceProvider);
-    final vaultId = tdlib.vaultChatId;
-
+    // This code for predefined media categories
     final defaultAlbums = [
       {'name': 'Photos', 'icon': CupertinoIcons.photo, 'topic': 'Photos'},
       {'name': 'Videos', 'icon': CupertinoIcons.video_camera, 'topic': 'Videos'},
@@ -82,8 +80,9 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
     ];
 
     return CupertinoPageScaffold(
+      // This code for clean albums navigation header
       navigationBar: CupertinoNavigationBar(
-        middle: const Text('Albums & Topics'),
+        middle: const Text('Albums'),
         trailing: CupertinoButton(
           padding: EdgeInsets.zero,
           onPressed: _showCreateAlbumDialog,
@@ -94,50 +93,9 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: CupertinoColors.systemGrey6.resolveFrom(context),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    CupertinoIcons.infinite,
-                    color: CupertinoColors.activeBlue,
-                    size: 28,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Infinity Vault Supergroup',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          vaultId != null
-                              ? 'Chat ID: $vaultId • Forum Mode Active'
-                              : 'Connecting to Telegram supergroup...',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: CupertinoColors.secondaryLabel.resolveFrom(context),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
+            // This code for media albums section header
             const Text(
-              'TELEGRAM TOPIC ALBUMS',
+              'MEDIA ALBUMS',
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
@@ -168,7 +126,6 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
                     albumName,
                     style: const TextStyle(fontWeight: FontWeight.w500),
                   ),
-                  subtitle: Text('Maps to topic: #${album['topic']}'),
                   trailing: const CupertinoListTileChevron(),
                   onTap: () {
                     // This code for navigating to Trash or specific album detail screen
@@ -189,7 +146,7 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
                 ),
               );
             }),
-            // This code for displaying user-created custom topic albums from SQLite
+            // This code for displaying user-created custom albums from SQLite
             ref.watch(albumsProvider).when(
                   data: (customAlbums) {
                     if (customAlbums.isEmpty) return const SizedBox.shrink();
@@ -198,7 +155,7 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
                       children: [
                         const SizedBox(height: 16),
                         const Text(
-                          'CUSTOM TOPIC ALBUMS',
+                          'MY ALBUMS',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
@@ -229,8 +186,6 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
                                 style: const TextStyle(
                                     fontWeight: FontWeight.w500),
                               ),
-                              subtitle: Text(
-                                  'Topic ID: #${cust.topicId ?? 'Pending'}'),
                               trailing: const CupertinoListTileChevron(),
                               onTap: () {
                                 Navigator.of(context).push(

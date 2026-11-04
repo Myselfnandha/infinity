@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:photo_manager/photo_manager.dart';
 import '../../core/di/providers.dart';
+import '../../core/storage/gallery_service.dart';
 import '../../core/telegram/tdlib_service.dart';
 
 class OnboardingScreen extends ConsumerStatefulWidget {
@@ -86,6 +87,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     }
   }
 
+  // This code for submitting 2FA password to TDLib
   Future<void> _submitPassword() async {
     final password = _passwordController.text;
     if (password.isEmpty) return;
@@ -105,6 +107,23 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     }
   }
 
+  // This code for requesting QR code login fallback in onboarding
+  Future<void> _requestQr() async {
+    setState(() {
+      _isLoading = true;
+      _authError = null;
+    });
+
+    try {
+      final tdlib = ref.read(tdlibServiceProvider);
+      await tdlib.requestQrCode();
+    } catch (e) {
+      setState(() => _authError = e.toString());
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
   Future<void> _requestGalleryPermission() async {
     final state = await PhotoManager.requestPermissionExtend();
     if (state.isAuth || state.hasAccess) {
@@ -117,6 +136,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     _nextPage();
   }
 
+  // This code for completing onboarding and triggering initial device media scan
   Future<void> _finishOnboarding() async {
     final prefs = ref.read(preferencesProvider);
     await prefs.setOnboardingCompleted(true);
@@ -131,6 +151,13 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     if (_backupDownloads) selectedFolders.add('downloads');
     await prefs.setBackupFolderIds(selectedFolders);
 
+    // This code for auto-scanning device media immediately upon onboarding completion
+    try {
+      final galleryService = GalleryService(ref.read(databaseProvider));
+      await galleryService.scanDeviceMedia(limit: 500);
+    } catch (_) {}
+
+    // This code for auto-queueing unsynced media to Telegram vault
     final sync = ref.read(syncEngineProvider);
     await sync.autoQueueUnsynced();
 
@@ -293,6 +320,12 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   : const Text('Send Verification Code'),
             ),
             const SizedBox(height: 12),
+            // This code for requesting QR code login fallback option
+            CupertinoButton(
+              onPressed: _isLoading ? null : _requestQr,
+              child: const Text('Log In via QR Code'),
+            ),
+            const SizedBox(height: 6),
             CupertinoButton(
               onPressed: _nextPage,
               child: const Text('Configure Later'),

@@ -27,7 +27,8 @@ class AlbumDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
-  int _crossAxisCount = 3;
+  // This code for fixed cross-axis count in album detail photo grid
+  final int _crossAxisCount = 3;
   bool _isSelectionMode = false;
   final Set<String> _selectedIds = {};
 
@@ -95,17 +96,6 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                 )
           ]))
         .watch();
-  }
-
-  // This code for cycling the grid column zoom level between 2, 3, and 4 columns
-  void _toggleZoomLevel() {
-    setState(() {
-      _crossAxisCount = _crossAxisCount == 3
-          ? 4
-          : _crossAxisCount == 4
-              ? 2
-              : 3;
-    });
   }
 
   // This code for toggling multi-selection mode
@@ -194,21 +184,11 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
               ? '${_selectedIds.length} Selected'
               : widget.title,
         ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CupertinoButton(
-              padding: EdgeInsets.zero,
-              onPressed: _toggleSelectionMode,
-              child: Text(_isSelectionMode ? 'Done' : 'Select'),
-            ),
-            const SizedBox(width: 8),
-            CupertinoButton(
-              padding: EdgeInsets.zero,
-              onPressed: _toggleZoomLevel,
-              child: const Icon(CupertinoIcons.square_grid_2x2),
-            ),
-          ],
+        // This code for toggling selection mode in album detail view
+        trailing: CupertinoButton(
+          padding: EdgeInsets.zero,
+          onPressed: _toggleSelectionMode,
+          child: Text(_isSelectionMode ? 'Done' : 'Select'),
         ),
       ),
       child: SafeArea(

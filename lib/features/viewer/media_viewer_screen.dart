@@ -155,6 +155,7 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
 
     return CupertinoPageScaffold(
       backgroundColor: CupertinoColors.black,
+      // This code for clean navigation bar with back button, date indicator, and EXIF sheet action
       navigationBar: CupertinoNavigationBar(
         backgroundColor: CupertinoColors.black.withValues(alpha: 0.6),
         leading: CupertinoButton(
@@ -162,77 +163,34 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
           child: const Icon(CupertinoIcons.back, color: CupertinoColors.white),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        middle: Text(
-          _itemList.length > 1
-              ? '${_currentIndex + 1} of ${_itemList.length}'
-              : current.mediaType.toUpperCase(),
-          style: const TextStyle(color: CupertinoColors.white),
-        ),
-        trailing: Row(
+        middle: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CupertinoButton(
-              padding: EdgeInsets.zero,
-              onPressed: _showExifSheet,
-              child: const Icon(
-                CupertinoIcons.info_circle,
+            Text(
+              formattedDate,
+              style: const TextStyle(
                 color: CupertinoColors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
               ),
             ),
-            CupertinoButton(
-              padding: EdgeInsets.zero,
-              onPressed: _shareMedia,
-              child: const Icon(
-                CupertinoIcons.share,
-                color: CupertinoColors.white,
+            if (_itemList.length > 1)
+              Text(
+                '${_currentIndex + 1} of ${_itemList.length}',
+                style: const TextStyle(
+                  color: CupertinoColors.systemGrey,
+                  fontSize: 10,
+                ),
               ),
-            ),
-            CupertinoButton(
-              padding: EdgeInsets.zero,
-              onPressed: _togglePin,
-              child: Icon(
-                current.isPinnedOffline
-                    ? CupertinoIcons.pin_fill
-                    : CupertinoIcons.pin,
-                color: current.isPinnedOffline
-                    ? CupertinoColors.systemYellow
-                    : CupertinoColors.white,
-              ),
-            ),
-            CupertinoButton(
-              padding: EdgeInsets.zero,
-              onPressed: _toggleFavorite,
-              child: Icon(
-                current.isFavorite
-                    ? CupertinoIcons.heart_fill
-                    : CupertinoIcons.heart,
-                color: current.isFavorite
-                    ? CupertinoColors.systemRed
-                    : CupertinoColors.white,
-              ),
-            ),
-            if (current.syncStatus != 'synced')
-              CupertinoButton(
-                padding: EdgeInsets.zero,
-                onPressed: _isUploading ? null : _uploadToVault,
-                child: _isUploading
-                    ? const CupertinoActivityIndicator(
-                        color: CupertinoColors.white,
-                      )
-                    : const Icon(
-                        CupertinoIcons.cloud_upload,
-                        color: CupertinoColors.activeBlue,
-                      ),
-              ),
-            CupertinoButton(
-              padding: EdgeInsets.zero,
-              onPressed: _moveToTrash,
-              child: const Icon(
-                CupertinoIcons.trash,
-                color: CupertinoColors.destructiveRed,
-              ),
-            ),
           ],
+        ),
+        trailing: CupertinoButton(
+          padding: EdgeInsets.zero,
+          onPressed: _showExifSheet,
+          child: const Icon(
+            CupertinoIcons.info_circle,
+            color: CupertinoColors.white,
+          ),
         ),
       ),
       child: SafeArea(
@@ -314,43 +272,28 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
                 ),
               ),
             ),
-            // This code for presenting footer bar with date, size, and sync state
+            // This code for presenting caption bar with file size and sync state badge
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
               color: CupertinoColors.black.withValues(alpha: 0.8),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        formattedDate,
-                        style: const TextStyle(
-                          color: CupertinoColors.white,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${(current.fileSize / (1024 * 1024)).toStringAsFixed(1)} MB',
-                        style: const TextStyle(
-                          color: CupertinoColors.systemGrey,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
+                  Text(
+                    '${(current.fileSize / (1024 * 1024)).toStringAsFixed(1)} MB',
+                    style: const TextStyle(
+                      color: CupertinoColors.systemGrey,
+                      fontSize: 12,
+                    ),
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 4),
+                        horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: current.syncStatus == 'synced'
                           ? CupertinoColors.activeGreen.withValues(alpha: 0.2)
                           : CupertinoColors.systemGrey.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                     child: Row(
                       children: [
@@ -358,7 +301,7 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
                           current.syncStatus == 'synced'
                               ? CupertinoIcons.check_mark_circled
                               : CupertinoIcons.arrow_up_circle,
-                          size: 14,
+                          size: 13,
                           color: current.syncStatus == 'synced'
                               ? CupertinoColors.activeGreen
                               : CupertinoColors.systemGrey,
@@ -367,7 +310,7 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
                         Text(
                           current.syncStatus.toUpperCase(),
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: 10,
                             fontWeight: FontWeight.w600,
                             color: current.syncStatus == 'synced'
                                 ? CupertinoColors.activeGreen
@@ -376,6 +319,67 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
                         ),
                       ],
                     ),
+                  ),
+                ],
+              ),
+            ),
+            // This code for ergonomic bottom action toolbar placed in user thumb zone
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              color: CupertinoColors.black.withValues(alpha: 0.95),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  CupertinoButton(
+                    padding: EdgeInsets.zero,
+                    onPressed: _shareMedia,
+                    child: const Icon(CupertinoIcons.share,
+                        color: CupertinoColors.white, size: 24),
+                  ),
+                  CupertinoButton(
+                    padding: EdgeInsets.zero,
+                    onPressed: _togglePin,
+                    child: Icon(
+                      current.isPinnedOffline
+                          ? CupertinoIcons.pin_fill
+                          : CupertinoIcons.pin,
+                      color: current.isPinnedOffline
+                          ? CupertinoColors.systemYellow
+                          : CupertinoColors.white,
+                      size: 24,
+                    ),
+                  ),
+                  if (current.syncStatus != 'synced')
+                    CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      onPressed: _isUploading ? null : _uploadToVault,
+                      child: _isUploading
+                          ? const CupertinoActivityIndicator(
+                              color: CupertinoColors.white)
+                          : const Icon(CupertinoIcons.cloud_upload,
+                              color: CupertinoColors.activeBlue, size: 24),
+                    )
+                  else
+                    const Icon(CupertinoIcons.checkmark_seal_fill,
+                        color: CupertinoColors.activeGreen, size: 22),
+                  CupertinoButton(
+                    padding: EdgeInsets.zero,
+                    onPressed: _toggleFavorite,
+                    child: Icon(
+                      current.isFavorite
+                          ? CupertinoIcons.heart_fill
+                          : CupertinoIcons.heart,
+                      color: current.isFavorite
+                          ? CupertinoColors.systemRed
+                          : CupertinoColors.white,
+                      size: 24,
+                    ),
+                  ),
+                  CupertinoButton(
+                    padding: EdgeInsets.zero,
+                    onPressed: _moveToTrash,
+                    child: const Icon(CupertinoIcons.trash,
+                        color: CupertinoColors.destructiveRed, size: 24),
                   ),
                 ],
               ),

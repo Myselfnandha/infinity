@@ -58,6 +58,36 @@ final allMediaProvider = StreamProvider<List<MediaItem>>((ref) {
   return db.watchAllMedia();
 });
 
+// This code for managing active gallery multi-selection mode across navigation scaffolds
+class SelectionModeNotifier extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  // This code for updating active selection mode state
+  void setSelectionMode(bool value) => state = value;
+}
+
+// This code for riverpod provider exposing active selection mode state
+final selectionModeProvider =
+    NotifierProvider<SelectionModeNotifier, bool>(SelectionModeNotifier.new);
+
+// This code for managing selected media item IDs across multi-selection sessions
+class SelectedMediaIdsNotifier extends Notifier<Set<String>> {
+  @override
+  Set<String> build() => <String>{};
+
+  // This code for replacing currently selected media IDs set
+  void setSelectedIds(Set<String> ids) => state = ids;
+
+  // This code for clearing all selected media IDs
+  void clear() => state = <String>{};
+}
+
+// This code for riverpod provider exposing selected media IDs set
+final selectedMediaIdsProvider =
+    NotifierProvider<SelectedMediaIdsNotifier, Set<String>>(
+        SelectedMediaIdsNotifier.new);
+
 final favoritesProvider = StreamProvider<List<MediaItem>>((ref) {
   final db = ref.watch(databaseProvider);
   return db.watchFavorites();

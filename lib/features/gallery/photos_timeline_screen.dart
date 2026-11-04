@@ -24,6 +24,32 @@ class _PhotosTimelineScreenState extends ConsumerState<PhotosTimelineScreen> {
   bool _isSelectionMode = false;
   final Set<String> _selectedIds = {};
 
+  // This code for initializing timeline and auto-scanning if media list is empty
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _autoScanIfEmpty();
+    });
+  }
+
+  // This code for scanning device media automatically if local vault is empty
+  Future<void> _autoScanIfEmpty() async {
+    final mediaAsync = ref.read(allMediaProvider);
+    final items = mediaAsync.value;
+    if (items == null || items.isEmpty) {
+      await _scanDevice();
+    }
+  }
+
+  // This code for synchronizing selection state with global riverpod providers
+  void _syncSelectionProviders() {
+    ref.read(selectionModeProvider.notifier).setSelectionMode(_isSelectionMode);
+    ref
+        .read(selectedMediaIdsProvider.notifier)
+        .setSelectedIds(Set.from(_selectedIds));
+  }
+
   // This code for scanning device storage for new photos and videos
   Future<void> _scanDevice() async {
     setState(() => _isScanning = true);
@@ -47,6 +73,7 @@ class _PhotosTimelineScreenState extends ConsumerState<PhotosTimelineScreen> {
         _selectedIds.clear();
       }
     });
+    _syncSelectionProviders();
   }
 
   // This code for toggling selection of a single media item
@@ -61,6 +88,7 @@ class _PhotosTimelineScreenState extends ConsumerState<PhotosTimelineScreen> {
         _selectedIds.add(id);
       }
     });
+    _syncSelectionProviders();
   }
 
   // This code for batch queuing selected media items to Telegram vault
@@ -77,6 +105,7 @@ class _PhotosTimelineScreenState extends ConsumerState<PhotosTimelineScreen> {
       _isSelectionMode = false;
       _selectedIds.clear();
     });
+    _syncSelectionProviders();
   }
 
   // This code for batch favoriting or unfavoriting selected media
@@ -94,6 +123,7 @@ class _PhotosTimelineScreenState extends ConsumerState<PhotosTimelineScreen> {
       _isSelectionMode = false;
       _selectedIds.clear();
     });
+    _syncSelectionProviders();
   }
 
   // This code for batch moving selected items to the trash
@@ -107,6 +137,7 @@ class _PhotosTimelineScreenState extends ConsumerState<PhotosTimelineScreen> {
       _isSelectionMode = false;
       _selectedIds.clear();
     });
+    _syncSelectionProviders();
   }
 
   // This code for batch exporting selected media items to a zipped bundle and invoking share sheet
@@ -145,6 +176,7 @@ class _PhotosTimelineScreenState extends ConsumerState<PhotosTimelineScreen> {
           _isSelectionMode = false;
           _selectedIds.clear();
         });
+        _syncSelectionProviders();
       }
     }
   }
@@ -200,21 +232,43 @@ class _PhotosTimelineScreenState extends ConsumerState<PhotosTimelineScreen> {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (!_isSelectionMode) ...[
-              CupertinoButton(
-                padding: EdgeInsets.zero,
-                onPressed: _toggleSelectionMode,
-                child: const Text('Select'),
+            // This code for Select All / Deselect All toggle button during selection mode
+            if (_isSelectionMode)
+              mediaAsync.maybeWhen(
+                data: (items) {
+                  final allSelected =
+                      items.isNotEmpty && _selectedIds.length == items.length;
+                  return CupertinoButton(
+                    padding: EdgeInsets.zero,
+                    onPressed: () {
+                      setState(() {
+                        if (allSelected) {
+                          _selectedIds.clear();
+                        } else {
+                          _selectedIds.addAll(items.map((i) => i.id));
+                        }
+                      });
+                      _syncSelectionProviders();
+                    },
+                    child: Text(allSelected ? 'Deselect All' : 'Select All'),
+                  );
+                },
+                orElse: () => const SizedBox.shrink(),
+              )
+            // This code for entering selection mode
+            else
+              mediaAsync.maybeWhen(
+                data: (items) => CupertinoButton(
+                  padding: EdgeInsets.zero,
+                  onPressed: items.isEmpty ? null : _toggleSelectionMode,
+                  child: const Text('Select'),
+                ),
+                orElse: () => CupertinoButton(
+                  padding: EdgeInsets.zero,
+                  onPressed: _toggleSelectionMode,
+                  child: const Text('Select'),
+                ),
               ),
-              const SizedBox(width: 8),
-              CupertinoButton(
-                padding: EdgeInsets.zero,
-                onPressed: _isScanning ? null : _scanDevice,
-                child: _isScanning
-                    ? const CupertinoActivityIndicator()
-                    : const Icon(CupertinoIcons.arrow_2_circlepath),
-              ),
-            ],
           ],
         ),
       ),
@@ -258,42 +312,54 @@ class _PhotosTimelineScreenState extends ConsumerState<PhotosTimelineScreen> {
                 ),
                 data: (items) {
                   if (items.isEmpty) {
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            CupertinoIcons.photo_on_rectangle,
-                            size: 64,
-                            color: CupertinoColors.systemGrey,
-                          ),
-                          const SizedBox(height: 16),
-                          const Text(
-                            'No media loaded yet',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: CupertinoColors.label,
+                    return CustomScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      slivers: [
+                        // This code for pull down to refresh on empty timeline
+                        CupertinoSliverRefreshControl(
+                          onRefresh: _scanDevice,
+                        ),
+                        SliverFillRemaining(
+                          hasScrollBody: false,
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  CupertinoIcons.photo_on_rectangle,
+                                  size: 64,
+                                  color: CupertinoColors.systemGrey,
+                                ),
+                                const SizedBox(height: 16),
+                                const Text(
+                                  'No media loaded yet',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: CupertinoColors.label,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                const Text(
+                                  'Drag down to refresh or scan device media',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: CupertinoColors.secondaryLabel,
+                                  ),
+                                ),
+                                const SizedBox(height: 24),
+                                CupertinoButton.filled(
+                                  onPressed: _isScanning ? null : _scanDevice,
+                                  child: _isScanning
+                                      ? const CupertinoActivityIndicator(
+                                          color: CupertinoColors.white)
+                                      : const Text('Scan Device Media'),
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Scan your device to view and backup photos',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: CupertinoColors.secondaryLabel,
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-                          CupertinoButton.filled(
-                            onPressed: _isScanning ? null : _scanDevice,
-                            child: _isScanning
-                                ? const CupertinoActivityIndicator(
-                                    color: CupertinoColors.white)
-                                : const Text('Scan Device Media'),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     );
                   }
 
@@ -309,7 +375,12 @@ class _PhotosTimelineScreenState extends ConsumerState<PhotosTimelineScreen> {
                       }
                     },
                     child: CustomScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
                       slivers: [
+                        // This code for pull-to-refresh drag down gesture scanning device media
+                        CupertinoSliverRefreshControl(
+                          onRefresh: _scanDevice,
+                        ),
                         for (final entry in grouped.entries) ...[
                           // This code for pinning date header under navigation bar during scrolling
                           SliverPersistentHeader(
@@ -489,8 +560,8 @@ class _PhotosTimelineScreenState extends ConsumerState<PhotosTimelineScreen> {
                 },
               ),
             ),
-            // This code for rendering batch actions bottom toolbar when items are selected
-            if (_isSelectionMode && _selectedIds.isNotEmpty)
+            // This code for rendering batch actions bottom toolbar when selection mode is active
+            if (_isSelectionMode)
               mediaAsync.maybeWhen(
                 data: (items) => Container(
                   padding:
@@ -511,54 +582,107 @@ class _PhotosTimelineScreenState extends ConsumerState<PhotosTimelineScreen> {
                     children: [
                       CupertinoButton(
                         padding: EdgeInsets.zero,
-                        onPressed: () => _batchUploadSelected(items),
-                        child: const Column(
+                        onPressed: _selectedIds.isEmpty
+                            ? null
+                            : () => _batchUploadSelected(items),
+                        child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(CupertinoIcons.cloud_upload),
-                            SizedBox(height: 2),
-                            Text('Sync', style: TextStyle(fontSize: 11)),
+                            Icon(
+                              CupertinoIcons.cloud_upload,
+                              color: _selectedIds.isEmpty
+                                  ? CupertinoColors.systemGrey
+                                  : CupertinoColors.activeBlue,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Sync',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: _selectedIds.isEmpty
+                                    ? CupertinoColors.systemGrey
+                                    : CupertinoColors.activeBlue,
+                              ),
+                            ),
                           ],
                         ),
                       ),
                       CupertinoButton(
                         padding: EdgeInsets.zero,
-                        onPressed: () => _batchFavoriteSelected(items),
-                        child: const Column(
+                        onPressed: _selectedIds.isEmpty
+                            ? null
+                            : () => _batchFavoriteSelected(items),
+                        child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(CupertinoIcons.heart),
-                            SizedBox(height: 2),
-                            Text('Favorite', style: TextStyle(fontSize: 11)),
+                            Icon(
+                              CupertinoIcons.heart,
+                              color: _selectedIds.isEmpty
+                                  ? CupertinoColors.systemGrey
+                                  : CupertinoColors.activeBlue,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Favorite',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: _selectedIds.isEmpty
+                                    ? CupertinoColors.systemGrey
+                                    : CupertinoColors.activeBlue,
+                              ),
+                            ),
                           ],
                         ),
                       ),
                       CupertinoButton(
                         padding: EdgeInsets.zero,
-                        onPressed: () => _batchExportZipSelected(items),
-                        child: const Column(
+                        onPressed: _selectedIds.isEmpty
+                            ? null
+                            : () => _batchExportZipSelected(items),
+                        child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(CupertinoIcons.archivebox),
-                            SizedBox(height: 2),
-                            Text('Export Zip', style: TextStyle(fontSize: 11)),
+                            Icon(
+                              CupertinoIcons.archivebox,
+                              color: _selectedIds.isEmpty
+                                  ? CupertinoColors.systemGrey
+                                  : CupertinoColors.activeBlue,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Export Zip',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: _selectedIds.isEmpty
+                                    ? CupertinoColors.systemGrey
+                                    : CupertinoColors.activeBlue,
+                              ),
+                            ),
                           ],
                         ),
                       ),
                       CupertinoButton(
                         padding: EdgeInsets.zero,
-                        onPressed: () => _batchTrashSelected(items),
-                        child: const Column(
+                        onPressed: _selectedIds.isEmpty
+                            ? null
+                            : () => _batchTrashSelected(items),
+                        child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(CupertinoIcons.trash,
-                                color: CupertinoColors.destructiveRed),
-                            SizedBox(height: 2),
+                            Icon(
+                              CupertinoIcons.trash,
+                              color: _selectedIds.isEmpty
+                                  ? CupertinoColors.systemGrey
+                                  : CupertinoColors.destructiveRed,
+                            ),
+                            const SizedBox(height: 2),
                             Text(
                               'Trash',
                               style: TextStyle(
                                 fontSize: 11,
-                                color: CupertinoColors.destructiveRed,
+                                color: _selectedIds.isEmpty
+                                    ? CupertinoColors.systemGrey
+                                    : CupertinoColors.destructiveRed,
                               ),
                             ),
                           ],

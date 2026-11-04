@@ -86,8 +86,7 @@ class _ExifInfoSheetState extends State<ExifInfoSheet> {
             _buildRow('Sync Status', widget.item.syncStatus.toUpperCase()),
             if (widget.item.locationName != null)
               _buildRow('Location', widget.item.locationName!),
-            if (widget.item.perceptualHash != null)
-              _buildRow('Perceptual Hash', widget.item.perceptualHash!),
+            // This code for hiding internal perceptual hash from end-user EXIF sheet display
             if (widget.item.telegramMessageId != null)
               _buildRow('Telegram Message ID', widget.item.telegramMessageId.toString()),
             if (_loading)
