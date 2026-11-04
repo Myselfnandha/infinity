@@ -221,6 +221,39 @@ class $MediaItemsTable extends MediaItems
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _latitudeMeta = const VerificationMeta(
+    'latitude',
+  );
+  @override
+  late final GeneratedColumn<double> latitude = GeneratedColumn<double>(
+    'latitude',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _longitudeMeta = const VerificationMeta(
+    'longitude',
+  );
+  @override
+  late final GeneratedColumn<double> longitude = GeneratedColumn<double>(
+    'longitude',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _locationNameMeta = const VerificationMeta(
+    'locationName',
+  );
+  @override
+  late final GeneratedColumn<String> locationName = GeneratedColumn<String>(
+    'location_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _encryptionKeyIdMeta = const VerificationMeta(
     'encryptionKeyId',
   );
@@ -280,6 +313,9 @@ class $MediaItemsTable extends MediaItems
     syncStatus,
     sha256Hash,
     perceptualHash,
+    latitude,
+    longitude,
+    locationName,
     encryptionKeyId,
     isPinnedOffline,
     cloudState,
@@ -433,6 +469,27 @@ class $MediaItemsTable extends MediaItems
         ),
       );
     }
+    if (data.containsKey('latitude')) {
+      context.handle(
+        _latitudeMeta,
+        latitude.isAcceptableOrUnknown(data['latitude']!, _latitudeMeta),
+      );
+    }
+    if (data.containsKey('longitude')) {
+      context.handle(
+        _longitudeMeta,
+        longitude.isAcceptableOrUnknown(data['longitude']!, _longitudeMeta),
+      );
+    }
+    if (data.containsKey('location_name')) {
+      context.handle(
+        _locationNameMeta,
+        locationName.isAcceptableOrUnknown(
+          data['location_name']!,
+          _locationNameMeta,
+        ),
+      );
+    }
     if (data.containsKey('encryption_key_id')) {
       context.handle(
         _encryptionKeyIdMeta,
@@ -542,6 +599,18 @@ class $MediaItemsTable extends MediaItems
         DriftSqlType.string,
         data['${effectivePrefix}perceptual_hash'],
       ),
+      latitude: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}latitude'],
+      ),
+      longitude: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}longitude'],
+      ),
+      locationName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}location_name'],
+      ),
       encryptionKeyId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}encryption_key_id'],
@@ -583,6 +652,9 @@ class MediaItem extends DataClass implements Insertable<MediaItem> {
   final String syncStatus;
   final String? sha256Hash;
   final String? perceptualHash;
+  final double? latitude;
+  final double? longitude;
+  final String? locationName;
   final String? encryptionKeyId;
   final bool isPinnedOffline;
   final String cloudState;
@@ -606,6 +678,9 @@ class MediaItem extends DataClass implements Insertable<MediaItem> {
     required this.syncStatus,
     this.sha256Hash,
     this.perceptualHash,
+    this.latitude,
+    this.longitude,
+    this.locationName,
     this.encryptionKeyId,
     required this.isPinnedOffline,
     required this.cloudState,
@@ -655,6 +730,15 @@ class MediaItem extends DataClass implements Insertable<MediaItem> {
     }
     if (!nullToAbsent || perceptualHash != null) {
       map['perceptual_hash'] = Variable<String>(perceptualHash);
+    }
+    if (!nullToAbsent || latitude != null) {
+      map['latitude'] = Variable<double>(latitude);
+    }
+    if (!nullToAbsent || longitude != null) {
+      map['longitude'] = Variable<double>(longitude);
+    }
+    if (!nullToAbsent || locationName != null) {
+      map['location_name'] = Variable<String>(locationName);
     }
     if (!nullToAbsent || encryptionKeyId != null) {
       map['encryption_key_id'] = Variable<String>(encryptionKeyId);
@@ -709,6 +793,15 @@ class MediaItem extends DataClass implements Insertable<MediaItem> {
       perceptualHash: perceptualHash == null && nullToAbsent
           ? const Value.absent()
           : Value(perceptualHash),
+      latitude: latitude == null && nullToAbsent
+          ? const Value.absent()
+          : Value(latitude),
+      longitude: longitude == null && nullToAbsent
+          ? const Value.absent()
+          : Value(longitude),
+      locationName: locationName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(locationName),
       encryptionKeyId: encryptionKeyId == null && nullToAbsent
           ? const Value.absent()
           : Value(encryptionKeyId),
@@ -742,6 +835,9 @@ class MediaItem extends DataClass implements Insertable<MediaItem> {
       syncStatus: serializer.fromJson<String>(json['syncStatus']),
       sha256Hash: serializer.fromJson<String?>(json['sha256Hash']),
       perceptualHash: serializer.fromJson<String?>(json['perceptualHash']),
+      latitude: serializer.fromJson<double?>(json['latitude']),
+      longitude: serializer.fromJson<double?>(json['longitude']),
+      locationName: serializer.fromJson<String?>(json['locationName']),
       encryptionKeyId: serializer.fromJson<String?>(json['encryptionKeyId']),
       isPinnedOffline: serializer.fromJson<bool>(json['isPinnedOffline']),
       cloudState: serializer.fromJson<String>(json['cloudState']),
@@ -770,6 +866,9 @@ class MediaItem extends DataClass implements Insertable<MediaItem> {
       'syncStatus': serializer.toJson<String>(syncStatus),
       'sha256Hash': serializer.toJson<String?>(sha256Hash),
       'perceptualHash': serializer.toJson<String?>(perceptualHash),
+      'latitude': serializer.toJson<double?>(latitude),
+      'longitude': serializer.toJson<double?>(longitude),
+      'locationName': serializer.toJson<String?>(locationName),
       'encryptionKeyId': serializer.toJson<String?>(encryptionKeyId),
       'isPinnedOffline': serializer.toJson<bool>(isPinnedOffline),
       'cloudState': serializer.toJson<String>(cloudState),
@@ -796,6 +895,9 @@ class MediaItem extends DataClass implements Insertable<MediaItem> {
     String? syncStatus,
     Value<String?> sha256Hash = const Value.absent(),
     Value<String?> perceptualHash = const Value.absent(),
+    Value<double?> latitude = const Value.absent(),
+    Value<double?> longitude = const Value.absent(),
+    Value<String?> locationName = const Value.absent(),
     Value<String?> encryptionKeyId = const Value.absent(),
     bool? isPinnedOffline,
     String? cloudState,
@@ -831,6 +933,9 @@ class MediaItem extends DataClass implements Insertable<MediaItem> {
     perceptualHash: perceptualHash.present
         ? perceptualHash.value
         : this.perceptualHash,
+    latitude: latitude.present ? latitude.value : this.latitude,
+    longitude: longitude.present ? longitude.value : this.longitude,
+    locationName: locationName.present ? locationName.value : this.locationName,
     encryptionKeyId: encryptionKeyId.present
         ? encryptionKeyId.value
         : this.encryptionKeyId,
@@ -876,6 +981,11 @@ class MediaItem extends DataClass implements Insertable<MediaItem> {
       perceptualHash: data.perceptualHash.present
           ? data.perceptualHash.value
           : this.perceptualHash,
+      latitude: data.latitude.present ? data.latitude.value : this.latitude,
+      longitude: data.longitude.present ? data.longitude.value : this.longitude,
+      locationName: data.locationName.present
+          ? data.locationName.value
+          : this.locationName,
       encryptionKeyId: data.encryptionKeyId.present
           ? data.encryptionKeyId.value
           : this.encryptionKeyId,
@@ -910,6 +1020,9 @@ class MediaItem extends DataClass implements Insertable<MediaItem> {
           ..write('syncStatus: $syncStatus, ')
           ..write('sha256Hash: $sha256Hash, ')
           ..write('perceptualHash: $perceptualHash, ')
+          ..write('latitude: $latitude, ')
+          ..write('longitude: $longitude, ')
+          ..write('locationName: $locationName, ')
           ..write('encryptionKeyId: $encryptionKeyId, ')
           ..write('isPinnedOffline: $isPinnedOffline, ')
           ..write('cloudState: $cloudState')
@@ -938,6 +1051,9 @@ class MediaItem extends DataClass implements Insertable<MediaItem> {
     syncStatus,
     sha256Hash,
     perceptualHash,
+    latitude,
+    longitude,
+    locationName,
     encryptionKeyId,
     isPinnedOffline,
     cloudState,
@@ -965,6 +1081,9 @@ class MediaItem extends DataClass implements Insertable<MediaItem> {
           other.syncStatus == this.syncStatus &&
           other.sha256Hash == this.sha256Hash &&
           other.perceptualHash == this.perceptualHash &&
+          other.latitude == this.latitude &&
+          other.longitude == this.longitude &&
+          other.locationName == this.locationName &&
           other.encryptionKeyId == this.encryptionKeyId &&
           other.isPinnedOffline == this.isPinnedOffline &&
           other.cloudState == this.cloudState);
@@ -990,6 +1109,9 @@ class MediaItemsCompanion extends UpdateCompanion<MediaItem> {
   final Value<String> syncStatus;
   final Value<String?> sha256Hash;
   final Value<String?> perceptualHash;
+  final Value<double?> latitude;
+  final Value<double?> longitude;
+  final Value<String?> locationName;
   final Value<String?> encryptionKeyId;
   final Value<bool> isPinnedOffline;
   final Value<String> cloudState;
@@ -1014,6 +1136,9 @@ class MediaItemsCompanion extends UpdateCompanion<MediaItem> {
     this.syncStatus = const Value.absent(),
     this.sha256Hash = const Value.absent(),
     this.perceptualHash = const Value.absent(),
+    this.latitude = const Value.absent(),
+    this.longitude = const Value.absent(),
+    this.locationName = const Value.absent(),
     this.encryptionKeyId = const Value.absent(),
     this.isPinnedOffline = const Value.absent(),
     this.cloudState = const Value.absent(),
@@ -1039,6 +1164,9 @@ class MediaItemsCompanion extends UpdateCompanion<MediaItem> {
     this.syncStatus = const Value.absent(),
     this.sha256Hash = const Value.absent(),
     this.perceptualHash = const Value.absent(),
+    this.latitude = const Value.absent(),
+    this.longitude = const Value.absent(),
+    this.locationName = const Value.absent(),
     this.encryptionKeyId = const Value.absent(),
     this.isPinnedOffline = const Value.absent(),
     this.cloudState = const Value.absent(),
@@ -1067,6 +1195,9 @@ class MediaItemsCompanion extends UpdateCompanion<MediaItem> {
     Expression<String>? syncStatus,
     Expression<String>? sha256Hash,
     Expression<String>? perceptualHash,
+    Expression<double>? latitude,
+    Expression<double>? longitude,
+    Expression<String>? locationName,
     Expression<String>? encryptionKeyId,
     Expression<bool>? isPinnedOffline,
     Expression<String>? cloudState,
@@ -1092,6 +1223,9 @@ class MediaItemsCompanion extends UpdateCompanion<MediaItem> {
       if (syncStatus != null) 'sync_status': syncStatus,
       if (sha256Hash != null) 'sha256_hash': sha256Hash,
       if (perceptualHash != null) 'perceptual_hash': perceptualHash,
+      if (latitude != null) 'latitude': latitude,
+      if (longitude != null) 'longitude': longitude,
+      if (locationName != null) 'location_name': locationName,
       if (encryptionKeyId != null) 'encryption_key_id': encryptionKeyId,
       if (isPinnedOffline != null) 'is_pinned_offline': isPinnedOffline,
       if (cloudState != null) 'cloud_state': cloudState,
@@ -1119,6 +1253,9 @@ class MediaItemsCompanion extends UpdateCompanion<MediaItem> {
     Value<String>? syncStatus,
     Value<String?>? sha256Hash,
     Value<String?>? perceptualHash,
+    Value<double?>? latitude,
+    Value<double?>? longitude,
+    Value<String?>? locationName,
     Value<String?>? encryptionKeyId,
     Value<bool>? isPinnedOffline,
     Value<String>? cloudState,
@@ -1144,6 +1281,9 @@ class MediaItemsCompanion extends UpdateCompanion<MediaItem> {
       syncStatus: syncStatus ?? this.syncStatus,
       sha256Hash: sha256Hash ?? this.sha256Hash,
       perceptualHash: perceptualHash ?? this.perceptualHash,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      locationName: locationName ?? this.locationName,
       encryptionKeyId: encryptionKeyId ?? this.encryptionKeyId,
       isPinnedOffline: isPinnedOffline ?? this.isPinnedOffline,
       cloudState: cloudState ?? this.cloudState,
@@ -1211,6 +1351,15 @@ class MediaItemsCompanion extends UpdateCompanion<MediaItem> {
     if (perceptualHash.present) {
       map['perceptual_hash'] = Variable<String>(perceptualHash.value);
     }
+    if (latitude.present) {
+      map['latitude'] = Variable<double>(latitude.value);
+    }
+    if (longitude.present) {
+      map['longitude'] = Variable<double>(longitude.value);
+    }
+    if (locationName.present) {
+      map['location_name'] = Variable<String>(locationName.value);
+    }
     if (encryptionKeyId.present) {
       map['encryption_key_id'] = Variable<String>(encryptionKeyId.value);
     }
@@ -1248,6 +1397,9 @@ class MediaItemsCompanion extends UpdateCompanion<MediaItem> {
           ..write('syncStatus: $syncStatus, ')
           ..write('sha256Hash: $sha256Hash, ')
           ..write('perceptualHash: $perceptualHash, ')
+          ..write('latitude: $latitude, ')
+          ..write('longitude: $longitude, ')
+          ..write('locationName: $locationName, ')
           ..write('encryptionKeyId: $encryptionKeyId, ')
           ..write('isPinnedOffline: $isPinnedOffline, ')
           ..write('cloudState: $cloudState, ')
@@ -2550,6 +2702,9 @@ typedef $$MediaItemsTableCreateCompanionBuilder = MediaItemsCompanion Function({
   Value<String> syncStatus,
   Value<String?> sha256Hash,
   Value<String?> perceptualHash,
+  Value<double?> latitude,
+  Value<double?> longitude,
+  Value<String?> locationName,
   Value<String?> encryptionKeyId,
   Value<bool> isPinnedOffline,
   Value<String> cloudState,
@@ -2575,6 +2730,9 @@ typedef $$MediaItemsTableUpdateCompanionBuilder = MediaItemsCompanion Function({
   Value<String> syncStatus,
   Value<String?> sha256Hash,
   Value<String?> perceptualHash,
+  Value<double?> latitude,
+  Value<double?> longitude,
+  Value<String?> locationName,
   Value<String?> encryptionKeyId,
   Value<bool> isPinnedOffline,
   Value<String> cloudState,
@@ -2682,6 +2840,21 @@ class $$MediaItemsTableFilterComposer
 
   ColumnFilters<String> get perceptualHash => $composableBuilder(
     column: $table.perceptualHash,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get latitude => $composableBuilder(
+    column: $table.latitude,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get longitude => $composableBuilder(
+    column: $table.longitude,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get locationName => $composableBuilder(
+    column: $table.locationName,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -2805,6 +2978,21 @@ class $$MediaItemsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<double> get latitude => $composableBuilder(
+    column: $table.latitude,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get longitude => $composableBuilder(
+    column: $table.longitude,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get locationName => $composableBuilder(
+    column: $table.locationName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get encryptionKeyId => $composableBuilder(
     column: $table.encryptionKeyId,
     builder: (column) => ColumnOrderings(column),
@@ -2905,6 +3093,17 @@ class $$MediaItemsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<double> get latitude =>
+      $composableBuilder(column: $table.latitude, builder: (column) => column);
+
+  GeneratedColumn<double> get longitude =>
+      $composableBuilder(column: $table.longitude, builder: (column) => column);
+
+  GeneratedColumn<String> get locationName => $composableBuilder(
+    column: $table.locationName,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get encryptionKeyId => $composableBuilder(
     column: $table.encryptionKeyId,
     builder: (column) => column,
@@ -2971,6 +3170,9 @@ class $$MediaItemsTableTableManager
                 Value<String> syncStatus = const Value.absent(),
                 Value<String?> sha256Hash = const Value.absent(),
                 Value<String?> perceptualHash = const Value.absent(),
+                Value<double?> latitude = const Value.absent(),
+                Value<double?> longitude = const Value.absent(),
+                Value<String?> locationName = const Value.absent(),
                 Value<String?> encryptionKeyId = const Value.absent(),
                 Value<bool> isPinnedOffline = const Value.absent(),
                 Value<String> cloudState = const Value.absent(),
@@ -2995,6 +3197,9 @@ class $$MediaItemsTableTableManager
                 syncStatus: syncStatus,
                 sha256Hash: sha256Hash,
                 perceptualHash: perceptualHash,
+                latitude: latitude,
+                longitude: longitude,
+                locationName: locationName,
                 encryptionKeyId: encryptionKeyId,
                 isPinnedOffline: isPinnedOffline,
                 cloudState: cloudState,
@@ -3021,6 +3226,9 @@ class $$MediaItemsTableTableManager
                 Value<String> syncStatus = const Value.absent(),
                 Value<String?> sha256Hash = const Value.absent(),
                 Value<String?> perceptualHash = const Value.absent(),
+                Value<double?> latitude = const Value.absent(),
+                Value<double?> longitude = const Value.absent(),
+                Value<String?> locationName = const Value.absent(),
                 Value<String?> encryptionKeyId = const Value.absent(),
                 Value<bool> isPinnedOffline = const Value.absent(),
                 Value<String> cloudState = const Value.absent(),
@@ -3045,6 +3253,9 @@ class $$MediaItemsTableTableManager
                 syncStatus: syncStatus,
                 sha256Hash: sha256Hash,
                 perceptualHash: perceptualHash,
+                latitude: latitude,
+                longitude: longitude,
+                locationName: locationName,
                 encryptionKeyId: encryptionKeyId,
                 isPinnedOffline: isPinnedOffline,
                 cloudState: cloudState,

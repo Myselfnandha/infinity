@@ -23,6 +23,12 @@ class MediaItems extends Table {
   TextColumn get syncStatus => text().withDefault(const Constant('local'))();
   TextColumn get sha256Hash => text().nullable()();
   TextColumn get perceptualHash => text().nullable()();
+  // This code for storing GPS latitude coordinate in decimal degrees
+  RealColumn get latitude => real().nullable()();
+  // This code for storing GPS longitude coordinate in decimal degrees
+  RealColumn get longitude => real().nullable()();
+  // This code for storing human-readable locality tag (e.g. 'San Francisco, USA')
+  TextColumn get locationName => text().nullable()();
   TextColumn get encryptionKeyId => text().nullable()();
   BoolColumn get isPinnedOffline => boolean().withDefault(const Constant(false))();
   TextColumn get cloudState => text().withDefault(const Constant('LOCAL_ONLY'))();
@@ -73,7 +79,19 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onCreate: (m) => m.createAll(),
+        onUpgrade: (m, from, to) async {
+          if (from < 2) {
+            await m.addColumn(mediaItems, mediaItems.latitude);
+            await m.addColumn(mediaItems, mediaItems.longitude);
+            await m.addColumn(mediaItems, mediaItems.locationName);
+          }
+        },
+      );
 
   static QueryExecutor _openConnection() {
     return driftDatabase(name: 'infinity_vault');
@@ -138,6 +156,7 @@ class AppDatabase extends _$AppDatabase {
     DateTime? endDate,
     bool? isFavorite,
     bool? isPinnedOffline,
+    bool? hasLocation,
   }) {
     return (select(mediaItems)
           ..where((tbl) {
@@ -146,7 +165,9 @@ class AppDatabase extends _$AppDatabase {
             if (query != null && query.trim().isNotEmpty) {
               final pattern = '%${query.trim()}%';
               predicate = predicate &
-                  (tbl.filePath.like(pattern) | tbl.id.like(pattern));
+                  (tbl.filePath.like(pattern) |
+                      tbl.id.like(pattern) |
+                      tbl.locationName.like(pattern));
             }
 
             if (mediaType != null && mediaType.isNotEmpty && mediaType != 'all') {
@@ -181,8 +202,59 @@ class AppDatabase extends _$AppDatabase {
               predicate = predicate & tbl.isPinnedOffline.equals(true);
             }
 
+            if (hasLocation == true) {
+              predicate = predicate &
+                  tbl.latitude.isNotNull() &
+                  tbl.longitude.isNotNull();
+            }
+
             return predicate;
           })
+          ..orderBy([
+            (tbl) => OrderingTerm(
+                expression: coalesce([tbl.dateTaken, tbl.dateAdded]),
+                mode: OrderingMode.desc)
+          ]))
+        .watch();
+  }
+
+  // This code for updating perceptual difference hash of an item
+  Future<void> updatePerceptualHash(String id, String hash) {
+    return (update(mediaItems)..where((tbl) => tbl.id.equals(id)))
+        .write(MediaItemsCompanion(perceptualHash: Value(hash)));
+  }
+
+  // This code for updating location coordinates and locality name of an item
+  Future<void> updateLocation(
+      String id, double latitude, double longitude, String? locationName) {
+    return (update(mediaItems)..where((tbl) => tbl.id.equals(id))).write(
+      MediaItemsCompanion(
+        latitude: Value(latitude),
+        longitude: Value(longitude),
+        locationName:
+            locationName != null ? Value(locationName) : const Value.absent(),
+      ),
+    );
+  }
+
+  // This code for fetching image items that have not had their perceptual hash calculated
+  Future<List<MediaItem>> getImagesWithoutPerceptualHash({int limit = 100}) {
+    return (select(mediaItems)
+          ..where((tbl) =>
+              tbl.perceptualHash.isNull() &
+              tbl.mediaType.equals('image') &
+              tbl.isTrashed.equals(false) &
+              tbl.filePath.isNotNull())
+          ..limit(limit))
+        .get();
+  }
+
+  // This code for streaming images that have perceptual hashes for duplicate clustering
+  Stream<List<MediaItem>> watchDuplicateCandidates() {
+    return (select(mediaItems)
+          ..where((tbl) =>
+              tbl.perceptualHash.isNotNull() &
+              tbl.isTrashed.equals(false))
           ..orderBy([
             (tbl) => OrderingTerm(
                 expression: coalesce([tbl.dateTaken, tbl.dateAdded]),

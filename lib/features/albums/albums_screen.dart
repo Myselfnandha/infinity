@@ -72,6 +72,11 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
         'icon': CupertinoIcons.device_phone_portrait,
         'topic': 'Screenshots'
       },
+      {
+        'name': 'Duplicates',
+        'icon': CupertinoIcons.rectangle_on_rectangle_angled,
+        'topic': 'Duplicates'
+      },
       {'name': 'Files', 'icon': CupertinoIcons.doc_on_doc, 'topic': 'Files'},
       {'name': 'Trash', 'icon': CupertinoIcons.trash, 'topic': 'Trash'},
     ];

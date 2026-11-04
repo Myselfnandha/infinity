@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import '../../core/database/app_database.dart';
 import '../../core/media/exif_parser_service.dart';
+import '../../core/media/location_tag_service.dart';
 
 class ExifInfoSheet extends StatefulWidget {
   final MediaItem item;
@@ -83,7 +84,10 @@ class _ExifInfoSheetState extends State<ExifInfoSheet> {
             _buildRow('Dimensions', '${widget.item.width ?? 0} × ${widget.item.height ?? 0} px'),
             _buildRow('File Size', '${(widget.item.fileSize / (1024 * 1024)).toStringAsFixed(2)} MB'),
             _buildRow('Sync Status', widget.item.syncStatus.toUpperCase()),
-            _buildRow('Cloud State', widget.item.cloudState),
+            if (widget.item.locationName != null)
+              _buildRow('Location', widget.item.locationName!),
+            if (widget.item.perceptualHash != null)
+              _buildRow('Perceptual Hash', widget.item.perceptualHash!),
             if (widget.item.telegramMessageId != null)
               _buildRow('Telegram Message ID', widget.item.telegramMessageId.toString()),
             if (_loading)
@@ -104,11 +108,21 @@ class _ExifInfoSheetState extends State<ExifInfoSheet> {
                 _buildRow('ISO', _metadata!.iso!),
               if (_metadata!.focalLength != null)
                 _buildRow('Focal Length', _metadata!.focalLength!),
-              if (_metadata!.latitude != null && _metadata!.longitude != null)
+              if (_metadata!.latitude != null && _metadata!.longitude != null) ...[
+                if (widget.item.locationName == null &&
+                    LocationTagService.resolveLocalityTag(
+                            _metadata!.latitude!, _metadata!.longitude!) !=
+                        null)
+                  _buildRow(
+                    'Location',
+                    LocationTagService.resolveLocalityTag(
+                        _metadata!.latitude!, _metadata!.longitude!)!,
+                  ),
                 _buildRow(
                   'Location Coordinates',
                   '${_metadata!.latitude!.toStringAsFixed(4)}, ${_metadata!.longitude!.toStringAsFixed(4)}',
                 ),
+              ],
             ],
           ],
         ),

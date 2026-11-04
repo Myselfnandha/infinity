@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../core/database/app_database.dart';
 import '../../core/di/providers.dart';
+import '../../core/media/perceptual_hash_service.dart';
 import '../viewer/media_viewer_screen.dart';
 
 // This code for managing stateful search criteria and filter selections
@@ -54,14 +55,30 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             : null;
     final bool? isFavParam = _selectedScope == 'favorites' ? true : null;
     final bool? isPinnedParam = _selectedScope == 'pinned' ? true : null;
+    final bool? hasLocationParam = _selectedScope == 'places' ? true : null;
 
-    final searchStream = db.searchMedia(
+    Stream<List<MediaItem>> searchStream = db.searchMedia(
       query: _searchQuery,
       mediaType: mediaTypeParam,
       startDate: startDate,
       isFavorite: isFavParam,
       isPinnedOffline: isPinnedParam,
+      hasLocation: hasLocationParam,
     );
+
+    if (_selectedScope == 'duplicates') {
+      searchStream = searchStream.map((items) {
+        final clusters = PerceptualHashService.findDuplicates(items);
+        final dupIds = <String>{};
+        for (final c in clusters) {
+          dupIds.add(c.primary.id);
+          for (final d in c.duplicates) {
+            dupIds.add(d.id);
+          }
+        }
+        return items.where((i) => dupIds.contains(i.id)).toList();
+      });
+    }
 
     return CupertinoPageScaffold(
       navigationBar: const CupertinoNavigationBar(
@@ -75,7 +92,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: CupertinoSearchTextField(
                 controller: _searchController,
-                placeholder: 'Search files, dates, or tags...',
+                placeholder: 'Search files, locations, dates, or tags...',
                 onChanged: (val) {
                   setState(() => _searchQuery = val);
                 },
@@ -94,6 +111,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   _buildScopePill('All', 'all'),
                   _buildScopePill('Photos', 'image'),
                   _buildScopePill('Videos', 'video'),
+                  _buildScopePill('Places', 'places'),
+                  _buildScopePill('Duplicates', 'duplicates'),
                   _buildScopePill('Files', 'files'),
                   _buildScopePill('Favorites', 'favorites'),
                   _buildScopePill('Pinned', 'pinned'),
@@ -353,6 +372,58 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 CupertinoIcons.pin_fill,
                 color: CupertinoColors.activeGreen,
                 size: 13,
+              ),
+            ),
+
+          // Location badge
+          if (item.locationName != null || item.latitude != null)
+            Positioned(
+              left: 4,
+              bottom: item.mediaType == 'video' ? 22 : 4,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                decoration: BoxDecoration(
+                  color: CupertinoColors.black.withValues(alpha: 0.6),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      CupertinoIcons.location_solid,
+                      size: 9,
+                      color: CupertinoColors.white,
+                    ),
+                    if (item.locationName != null) ...[
+                      const SizedBox(width: 2),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 60),
+                        child: Text(
+                          item.locationName!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 8,
+                            color: CupertinoColors.white,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+
+          // Duplicate indicator badge
+          if (_selectedScope == 'duplicates' && item.perceptualHash != null)
+            const Positioned(
+              right: 4,
+              top: 4,
+              child: Icon(
+                CupertinoIcons.rectangle_on_rectangle_angled,
+                color: CupertinoColors.activeOrange,
+                size: 14,
               ),
             ),
 

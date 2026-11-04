@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../core/database/app_database.dart';
 import '../../core/di/providers.dart';
 import '../../core/storage/gallery_service.dart';
+import '../../core/storage/zip_export_service.dart';
 import '../viewer/media_viewer_screen.dart';
 
 // This code for managing interactive timeline state including selection and dynamic grid scaling
@@ -106,6 +107,46 @@ class _PhotosTimelineScreenState extends ConsumerState<PhotosTimelineScreen> {
       _isSelectionMode = false;
       _selectedIds.clear();
     });
+  }
+
+  // This code for batch exporting selected media items to a zipped bundle and invoking share sheet
+  Future<void> _batchExportZipSelected(List<MediaItem> allItems) async {
+    final selectedItems =
+        allItems.where((i) => _selectedIds.contains(i.id)).toList();
+    if (selectedItems.isEmpty) return;
+
+    // Show Cupertino loading indicator
+    showCupertinoDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(
+        child: CupertinoPopupSurface(
+          child: Padding(
+            padding: EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CupertinoActivityIndicator(),
+                SizedBox(height: 12),
+                Text('Compressing to Zip...'),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    try {
+      await ZipExportService.exportAndShareMediaItems(selectedItems);
+    } finally {
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        setState(() {
+          _isSelectionMode = false;
+          _selectedIds.clear();
+        });
+      }
+    }
   }
 
   // This code for formatting date groupings for timeline sections
@@ -489,6 +530,18 @@ class _PhotosTimelineScreenState extends ConsumerState<PhotosTimelineScreen> {
                             Icon(CupertinoIcons.heart),
                             SizedBox(height: 2),
                             Text('Favorite', style: TextStyle(fontSize: 11)),
+                          ],
+                        ),
+                      ),
+                      CupertinoButton(
+                        padding: EdgeInsets.zero,
+                        onPressed: () => _batchExportZipSelected(items),
+                        child: const Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(CupertinoIcons.archivebox),
+                            SizedBox(height: 2),
+                            Text('Export Zip', style: TextStyle(fontSize: 11)),
                           ],
                         ),
                       ),

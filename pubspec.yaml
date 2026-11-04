@@ -59,6 +59,8 @@ dependencies:
   exif: ^3.3.0
   share_plus: ^13.3.1
   connectivity_plus: ^7.3.2
+  archive: ^4.0.2
+  image: ^4.5.4
 
 dev_dependencies:
   flutter_test:
