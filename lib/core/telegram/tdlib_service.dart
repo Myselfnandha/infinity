@@ -76,6 +76,27 @@ class TdlibService {
   final Map<String, Completer<TdObject>> _pendingRequests = {};
   final Random _random = Random();
 
+  // This code for ensuring TDLib parameters handshake completes before dispatching auth requests
+  final Completer<void> _parametersCompleter = Completer<void>();
+  bool _parametersSet = false;
+
+  // This code for awaiting completion of TDLib parameter initialization
+  Future<void> _ensureParametersSet() async {
+    if (_parametersSet) return;
+    await initialize();
+    if (_parametersSet) return;
+    try {
+      await _parametersCompleter.future.timeout(const Duration(seconds: 15));
+    } catch (_) {}
+  }
+
+  // This code for resetting auth state to phone number entry from QR mode
+  void resetToPhoneNumber() {
+    _qrCodeLink = null;
+    _currentAuthState = TelegramAuthState.waitingForPhoneNumber;
+    _authStateController.add(_currentAuthState);
+  }
+
   Future<void> initialize({int? apiId, String? apiHash}) async {
     if (_isInitialized && _clientId != 0) return;
 
@@ -144,7 +165,7 @@ class TdlibService {
       final finalApiId = apiId ?? 2496;
       final finalApiHash = apiHash ?? '8da85b0d5b1652522bc46057082da478';
 
-      await sendAsync(
+      final res = await sendAsync(
         SetTdlibParameters(
           useTestDc: false,
           databaseDirectory: dbDir,
@@ -162,7 +183,17 @@ class TdlibService {
           applicationVersion: '1.0.0',
         ),
       );
+      if (res is! TdError) {
+        _parametersSet = true;
+        if (!_parametersCompleter.isCompleted) {
+          _parametersCompleter.complete();
+        }
+      }
     } else if (state is AuthorizationStateWaitPhoneNumber) {
+      _parametersSet = true;
+      if (!_parametersCompleter.isCompleted) {
+        _parametersCompleter.complete();
+      }
       _currentAuthState = TelegramAuthState.waitingForPhoneNumber;
       _authStateController.add(_currentAuthState);
     } else if (state is AuthorizationStateWaitCode) {
@@ -209,7 +240,9 @@ class TdlibService {
     );
   }
 
+  // This code for sending international phone number for Telegram authentication
   Future<void> sendPhoneNumber(String phoneNumber) async {
+    await _ensureParametersSet();
     _authPhoneNumber = phoneNumber;
     final res = await sendAsync(
       SetAuthenticationPhoneNumber(
@@ -229,21 +262,27 @@ class TdlibService {
     }
   }
 
+  // This code for submitting verification code to TDLib
   Future<void> sendAuthCode(String code) async {
+    await _ensureParametersSet();
     final res = await sendAsync(CheckAuthenticationCode(code: code));
     if (res is TdError) {
       throw Exception(res.message);
     }
   }
 
+  // This code for submitting 2FA password to TDLib
   Future<void> send2FaPassword(String password) async {
+    await _ensureParametersSet();
     final res = await sendAsync(CheckAuthenticationPassword(password: password));
     if (res is TdError) {
       throw Exception(res.message);
     }
   }
 
+  // This code for requesting QR code pairing authentication link
   Future<void> requestQrCode() async {
+    await _ensureParametersSet();
     final res = await sendAsync(
       const RequestQrCodeAuthentication(otherUserIds: []),
     );

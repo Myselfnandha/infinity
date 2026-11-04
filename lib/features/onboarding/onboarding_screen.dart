@@ -322,10 +322,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               child: const Text('Open in Telegram App'),
             ),
             const SizedBox(height: 12),
+            // This code for switching back to phone number input from QR code display
             CupertinoButton(
               onPressed: () {
                 setState(() => _authError = null);
-                ref.read(tdlibServiceProvider).initialize();
+                ref.read(tdlibServiceProvider).resetToPhoneNumber();
               },
               child: const Text('Use Phone Number Instead'),
             ),
