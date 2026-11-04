@@ -1,11 +1,11 @@
 // This code for managing Telegram Vault supergroup account status, pairing, and live authentication
-import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/di/providers.dart';
 import '../../core/telegram/tdlib_service.dart';
+import '../auth/telegram_api_extraction_sheet.dart';
 
 // This code for rendering the interactive Telegram Vault account details and authentication sub-page
 class VaultAccountScreen extends ConsumerStatefulWidget {
@@ -32,10 +32,8 @@ class _VaultAccountScreenState extends ConsumerState<VaultAccountScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final prefs = ref.read(preferencesProvider);
-      final defaultId = Platform.isAndroid ? 6 : 2496;
-      final defaultHash = Platform.isAndroid
-          ? 'eb06d4abfb49dc3eeb1aeb9890c81e47'
-          : '8da85b0d5b1652522bc46057082da478';
+      final defaultId = TdlibService.defaultApiId;
+      final defaultHash = TdlibService.defaultApiHash;
 
       _apiIdController.text = (prefs.telegramApiId ?? defaultId).toString();
       _apiHashController.text = prefs.telegramApiHash ?? defaultHash;
@@ -451,6 +449,41 @@ class _VaultAccountScreenState extends ConsumerState<VaultAccountScreen> {
                       CupertinoButton(
                         onPressed: _isLoading ? null : _requestQrCode,
                         child: const Text('Log In via QR Code'),
+                      ),
+                      const SizedBox(height: 10),
+                      // This code for launching 1-tap automated browser modal extraction for Telegram API credentials
+                      CupertinoButton(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        color: CupertinoColors.activeBlue.withValues(alpha: 0.12),
+                        onPressed: () async {
+                          final result = await TelegramApiExtractionSheet.show(context);
+                          if (result != null && mounted) {
+                            final int? id = result['apiId'] as int?;
+                            final String? hash = result['apiHash'] as String?;
+                            if (id != null && hash != null) {
+                              setState(() {
+                                _apiIdController.text = id.toString();
+                                _apiHashController.text = hash;
+                                _showCustomApi = true;
+                              });
+                            }
+                          }
+                        },
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(CupertinoIcons.compass, size: 18, color: CupertinoColors.activeBlue),
+                            SizedBox(width: 8),
+                            Text(
+                              'Auto-Connect Telegram API (Browser)',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: CupertinoColors.activeBlue,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                       const SizedBox(height: 4),
                       // This code for toggling custom Telegram API credentials input

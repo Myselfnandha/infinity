@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/di/providers.dart';
 import '../../core/telegram/tdlib_service.dart';
+import 'telegram_api_extraction_sheet.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
   const AuthScreen({super.key});
@@ -256,6 +257,51 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                   CupertinoButton(
                     onPressed: _isLoading ? null : _requestQr,
                     child: const Text('Scan QR Code instead'),
+                  ),
+                  const SizedBox(height: 12),
+                  // 1-tap automated browser extraction for my.telegram.org credentials
+                  CupertinoButton(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    color: CupertinoColors.activeBlue.withValues(alpha: 0.12),
+                    onPressed: _isLoading
+                        ? null
+                        : () async {
+                            final result = await TelegramApiExtractionSheet.show(context);
+                            if (!context.mounted) return;
+                            if (result != null) {
+                              showCupertinoDialog(
+                                context: context,
+                                builder: (ctx) => CupertinoAlertDialog(
+                                  title: const Text('Telegram API Connected'),
+                                  content: Text(
+                                    'Connected API ID: ${result['apiId']} successfully configured.',
+                                  ),
+                                  actions: [
+                                    CupertinoDialogAction(
+                                      isDefaultAction: true,
+                                      onPressed: () => Navigator.of(ctx).pop(),
+                                      child: const Text('OK'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }
+                          },
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(CupertinoIcons.compass, size: 18, color: CupertinoColors.activeBlue),
+                        SizedBox(width: 8),
+                        Text(
+                          'Auto-Connect Telegram API (Browser)',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: CupertinoColors.activeBlue,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ],

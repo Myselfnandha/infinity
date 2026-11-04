@@ -204,6 +204,9 @@ class _TrashScreenState extends ConsumerState<TrashScreen> {
                                 ? Image.file(
                                     File(item.filePath!),
                                     fit: BoxFit.cover,
+                                    cacheWidth: 360,
+                                    cacheHeight: 360,
+                                    filterQuality: FilterQuality.low,
                                     errorBuilder: (ctx, err, stack) =>
                                         Container(
                                       color: CupertinoColors.systemGrey5,

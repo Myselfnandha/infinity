@@ -438,6 +438,9 @@ class _PhotosTimelineScreenState extends ConsumerState<PhotosTimelineScreen> {
                                             ? Image.file(
                                                 File(item.filePath!),
                                                 fit: BoxFit.cover,
+                                                cacheWidth: 360,
+                                                cacheHeight: 360,
+                                                filterQuality: FilterQuality.low,
                                                 errorBuilder:
                                                     (ctx, err, stack) =>
                                                         Container(

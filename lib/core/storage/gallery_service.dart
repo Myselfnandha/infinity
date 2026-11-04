@@ -35,7 +35,7 @@ class GalleryService {
       size: limit,
     );
 
-    int insertedCount = 0;
+    final List<MediaItemsCompanion> companions = [];
     for (final asset in assets) {
       final File? file = await asset.file;
       if (file == null) continue;
@@ -59,34 +59,49 @@ class GalleryService {
         locality = LocationTagService.resolveLocalityTag(lat, lng);
       }
 
-      // This code for computing 64-bit gradient perceptual hash for duplicate detection
+      // This code for avoiding UI thread jank by extracting small thumbnails for perceptual hashing
       String? pHash;
       if (mediaType == 'image') {
-        pHash = await PerceptualHashService.computeDHash(file.path);
+        try {
+          final thumbBytes = await asset.thumbnailDataWithSize(const ThumbnailSize(64, 64));
+          if (thumbBytes != null && thumbBytes.isNotEmpty) {
+            pHash = await PerceptualHashService.computeDHashFromBytes(thumbBytes);
+          } else {
+            pHash = await PerceptualHashService.computeDHash(file.path);
+          }
+        } catch (_) {
+          pHash = null;
+        }
       }
 
-      final companion = MediaItemsCompanion.insert(
-        id: asset.id.isNotEmpty ? asset.id : _uuid.v4(),
-        filePath: Value(file.path),
-        mediaType: mediaType,
-        width: Value(asset.width),
-        height: Value(asset.height),
-        fileSize: await file.length(),
-        duration: Value(asset.duration),
-        dateTaken: Value(asset.createDateTime),
-        dateAdded: asset.modifiedDateTime,
-        isFavorite: Value(asset.isFavorite),
-        syncStatus: const Value('local'),
-        latitude: Value(lat),
-        longitude: Value(lng),
-        locationName: Value(locality),
-        perceptualHash: Value(pHash),
+      companions.add(
+        MediaItemsCompanion.insert(
+          id: asset.id.isNotEmpty ? asset.id : _uuid.v4(),
+          filePath: Value(file.path),
+          mediaType: mediaType,
+          width: Value(asset.width),
+          height: Value(asset.height),
+          fileSize: await file.length(),
+          duration: Value(asset.duration),
+          dateTaken: Value(asset.createDateTime),
+          dateAdded: asset.modifiedDateTime,
+          isFavorite: Value(asset.isFavorite),
+          syncStatus: const Value('local'),
+          latitude: Value(lat),
+          longitude: Value(lng),
+          locationName: Value(locality),
+          perceptualHash: Value(pHash),
+        ),
       );
-
-      await _db.insertMediaItem(companion);
-      insertedCount++;
     }
 
-    return insertedCount;
+    // This code for batch inserting media item companions into SQLite in a single transaction
+    if (companions.isNotEmpty) {
+      await _db.batch((b) {
+        b.insertAllOnConflictUpdate(_db.mediaItems, companions);
+      });
+    }
+
+    return companions.length;
   }
 }

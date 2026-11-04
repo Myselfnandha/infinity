@@ -326,6 +326,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     ? Image.file(
                         File(item.thumbnailPath!),
                         fit: BoxFit.cover,
+                        cacheWidth: 360,
+                        cacheHeight: 360,
+                        filterQuality: FilterQuality.low,
                         errorBuilder: (context, error, stackTrace) =>
                             _buildFallback(item),
                       )
@@ -333,6 +336,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                         ? Image.file(
                             File(item.filePath!),
                             fit: BoxFit.cover,
+                            cacheWidth: 360,
+                            cacheHeight: 360,
+                            filterQuality: FilterQuality.low,
                             errorBuilder: (context, error, stackTrace) =>
                                 _buildFallback(item),
                           )

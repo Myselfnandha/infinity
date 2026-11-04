@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart';
+import 'package:handy_tdlib_next/handy_tdlib_next.dart' hide File;
 import 'package:uuid/uuid.dart';
 import '../database/app_database.dart';
 import '../settings/app_preferences.dart';
@@ -21,12 +22,15 @@ class SyncEngine {
   final Random _random = Random();
 
   bool _isProcessing = false;
+  bool _isDisposed = false;
   StreamSubscription? _queueSubscription;
+  Timer? _wakeupTimer;
 
   SyncEngine(this._db, this._tdlib, this._prefs, this._cacheManager);
 
   // This code for starting the reactive queue processor stream listener
   void startQueueProcessor() {
+    _isDisposed = false;
     _queueSubscription?.cancel();
     _queueSubscription = _db.watchPendingSyncTasks().listen((tasks) {
       if (tasks.isNotEmpty && !_isProcessing) {
@@ -37,7 +41,9 @@ class SyncEngine {
 
   // This code for stopping the sync queue processor
   void stopQueueProcessor() {
+    _isDisposed = true;
     _queueSubscription?.cancel();
+    _wakeupTimer?.cancel();
   }
 
   // This code for enqueuing a media item for upload to Telegram
@@ -92,54 +98,79 @@ class SyncEngine {
     return digest.toString();
   }
 
-  // This code for processing the next pending upload task with retries and exponential backoff
+  // This code for processing the pending upload queue until exhausted or blocked
   Future<void> processNextTask() async {
-    if (_isProcessing) return;
+    if (_isProcessing || _isDisposed) return;
 
     final canSync = await _canSyncUnderCurrentNetwork();
-    if (!canSync) return;
+    if (!canSync || _isDisposed) return;
 
     _isProcessing = true;
 
     try {
-      final tasks = await (_db.select(_db.syncQueue)
-            ..where((tbl) => tbl.status.equals('pending'))
-            ..orderBy([
-              (tbl) => OrderingTerm(expression: tbl.priority, mode: OrderingMode.desc),
-              (tbl) => OrderingTerm(expression: tbl.createdAt, mode: OrderingMode.asc)
-            ])
-            ..limit(1))
-          .get();
+      while (!_isDisposed) {
+        final canStillSync = await _canSyncUnderCurrentNetwork();
+        if (!canStillSync || _isDisposed) break;
 
-      if (tasks.isEmpty) {
-        _isProcessing = false;
-        return;
+        final hasMore = await _processSingleTask();
+        if (!hasMore || _isDisposed) break;
       }
+    } finally {
+      _isProcessing = false;
+    }
+  }
 
-      final task = tasks.first;
-      final media = await _db.getMediaItem(task.mediaId);
+  // This code for processing a single pending task in the queue; returns true if a task was handled
+  Future<bool> _processSingleTask() async {
+    final now = DateTime.now();
+    final tasks = await (_db.select(_db.syncQueue)
+          ..where((tbl) =>
+              tbl.status.equals('pending') &
+              (tbl.lastAttemptAt.isNull() |
+                  tbl.lastAttemptAt.isSmallerOrEqualValue(now)))
+          ..orderBy([
+            (tbl) => OrderingTerm(
+                expression: tbl.priority, mode: OrderingMode.desc),
+            (tbl) => OrderingTerm(
+                expression: tbl.createdAt, mode: OrderingMode.asc)
+          ])
+          ..limit(1))
+        .get();
 
-      if (media == null || media.filePath == null) {
-        await _db.updateTaskStatus(
-          task.id,
-          'failed',
-          errorMessage: 'Media file not found on device',
-          lastAttemptAt: DateTime.now(),
-        );
-        _isProcessing = false;
-        return;
-      }
+    if (tasks.isEmpty) {
+      await _scheduleNextBackoffWakeup(now);
+      return false;
+    }
 
+    final task = tasks.first;
+    final media = await _db.getMediaItem(task.mediaId);
+
+    // This code for verifying local file existence on device before attempting upload
+    if (media == null ||
+        media.filePath == null ||
+        !await File(media.filePath!).exists()) {
       await _db.updateTaskStatus(
         task.id,
-        'inProgress',
+        'failed',
+        errorMessage: 'Media file not found on device',
         lastAttemptAt: DateTime.now(),
       );
-      await _db.setCloudState(media.id, 'UPLOADING');
+      await _db.setCloudState(task.mediaId, 'FAILED');
+      return true;
+    }
 
+    await _db.updateTaskStatus(
+      task.id,
+      'inProgress',
+      lastAttemptAt: DateTime.now(),
+    );
+    await _db.setCloudState(media.id, 'UPLOADING');
+
+    try {
       final fileHash = await calculateSha256(media.filePath!);
       final existingDeduplicated = await _db.getMediaByHash(fileHash);
 
+      // This code for deduplicating identical files against the Telegram supergroup vault
       if (existingDeduplicated != null &&
           existingDeduplicated.id != media.id &&
           existingDeduplicated.telegramMessageId != null) {
@@ -151,13 +182,12 @@ class SyncEngine {
           telegramChatId: existingDeduplicated.telegramChatId,
           telegramTopicId: existingDeduplicated.telegramTopicId,
         );
-        await (_db.update(_db.mediaItems)..where((tbl) => tbl.id.equals(media.id)))
+        await (_db.update(_db.mediaItems)
+              ..where((tbl) => tbl.id.equals(media.id)))
             .write(MediaItemsCompanion(sha256Hash: Value(fileHash)));
         await _db.setCloudState(media.id, 'AVAILABLE_LOCALLY');
         await _db.deleteSyncTask(task.id);
-        _isProcessing = false;
-        processNextTask();
-        return;
+        return true;
       }
 
       // This code for resolving destination Telegram forum topic based on media type and category
@@ -170,14 +200,17 @@ class SyncEngine {
       );
 
       if (message != null) {
+        final extractedFileId = _extractFileId(message.content);
         await _db.updateSyncStatus(
           media.id,
           'synced',
+          telegramFileId: extractedFileId,
           telegramMessageId: message.id,
           telegramChatId: message.chatId,
           telegramTopicId: topicId,
         );
-        await (_db.update(_db.mediaItems)..where((tbl) => tbl.id.equals(media.id)))
+        await (_db.update(_db.mediaItems)
+              ..where((tbl) => tbl.id.equals(media.id)))
             .write(MediaItemsCompanion(sha256Hash: Value(fileHash)));
         await _db.setCloudState(media.id, 'AVAILABLE_LOCALLY');
         await _db.deleteSyncTask(task.id);
@@ -186,15 +219,50 @@ class SyncEngine {
         await _handleTaskFailure(task, 'Upload returned null message');
       }
     } catch (e) {
-      final tasks = await (_db.select(_db.syncQueue)
-            ..where((tbl) => tbl.status.equals('inProgress'))
-            ..limit(1))
-          .get();
-      if (tasks.isNotEmpty) {
-        await _handleTaskFailure(tasks.first, e.toString());
+      await _handleTaskFailure(task, e.toString());
+    }
+
+    return true;
+  }
+
+  // This code for extracting Telegram file identifier from TDLib message content
+  String? _extractFileId(MessageContent content) {
+    if (content is MessagePhoto) {
+      final sizes = content.photo.sizes;
+      if (sizes.isNotEmpty) {
+        return sizes.last.photo.id.toString();
       }
-    } finally {
-      _isProcessing = false;
+    } else if (content is MessageVideo) {
+      return content.video.video.id.toString();
+    } else if (content is MessageDocument) {
+      return content.document.document.id.toString();
+    }
+    return null;
+  }
+
+  // This code for scheduling a wakeup timer for the earliest task currently in exponential backoff delay
+  Future<void> _scheduleNextBackoffWakeup(DateTime now) async {
+    _wakeupTimer?.cancel();
+    final nextDelayedTasks = await (_db.select(_db.syncQueue)
+          ..where((tbl) =>
+              tbl.status.equals('pending') &
+              tbl.lastAttemptAt.isNotNull() &
+              tbl.lastAttemptAt.isBiggerThanValue(now))
+          ..orderBy([
+            (tbl) => OrderingTerm(
+                expression: tbl.lastAttemptAt, mode: OrderingMode.asc)
+          ])
+          ..limit(1))
+        .get();
+
+    if (nextDelayedTasks.isNotEmpty) {
+      final nextDue = nextDelayedTasks.first.lastAttemptAt!;
+      final delay = nextDue.difference(now);
+      _wakeupTimer = Timer(delay + const Duration(milliseconds: 100), () {
+        if (!_isProcessing && !_isDisposed) {
+          processNextTask();
+        }
+      });
     }
   }
 

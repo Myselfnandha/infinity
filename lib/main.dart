@@ -54,6 +54,9 @@ class _InfinityAppState extends ConsumerState<InfinityApp>
       // This code for initializing TDLib client engine
       ref.read(tdlibServiceProvider).initialize();
 
+      // This code for eagerly bootstrapping the background sync engine and queue listener
+      ref.read(syncEngineProvider);
+
       // This code for verifying biometric unlock on fresh application launch if enabled
       final prefs = ref.read(preferencesProvider);
       if (prefs.isBiometricLockEnabled) {
