@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -45,12 +46,13 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final prefs = ref.read(preferencesProvider);
-      if (prefs.telegramApiId != null) {
-        _apiIdController.text = prefs.telegramApiId.toString();
-      }
-      if (prefs.telegramApiHash != null) {
-        _apiHashController.text = prefs.telegramApiHash!;
-      }
+      final defaultId = Platform.isAndroid ? 6 : 2496;
+      final defaultHash = Platform.isAndroid
+          ? 'eb06d4abfb49dc3eeb1aeb9890c81e47'
+          : '8da85b0d5b1652522bc46057082da478';
+
+      _apiIdController.text = (prefs.telegramApiId ?? defaultId).toString();
+      _apiHashController.text = prefs.telegramApiHash ?? defaultHash;
     });
   }
 
@@ -72,17 +74,25 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     );
   }
 
-  // This code for applying user entered Telegram API credentials before initiating authentication
+  // Applies user configured Telegram API credentials before initiating authentication
   Future<void> _applyCustomCredentialsIfAny() async {
     final prefs = ref.read(preferencesProvider);
     final idText = _apiIdController.text.trim();
     final hashText = _apiHashController.text.trim();
+    int? parsedId;
     if (idText.isNotEmpty) {
-      final id = int.tryParse(idText);
-      if (id != null) await prefs.setTelegramApiId(id);
+      parsedId = int.tryParse(idText);
+      if (parsedId != null) await prefs.setTelegramApiId(parsedId);
     }
     if (hashText.isNotEmpty) {
       await prefs.setTelegramApiHash(hashText);
+    }
+
+    final tdlib = ref.read(tdlibServiceProvider);
+    if (parsedId != null && hashText.isNotEmpty) {
+      if (tdlib.activeApiId != parsedId || tdlib.activeApiHash != hashText) {
+        await tdlib.restartClient(apiId: parsedId, apiHash: hashText);
+      }
     }
   }
 
@@ -309,13 +319,34 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 color: CupertinoColors.destructiveRed.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Text(
-                _authError!,
-                style: const TextStyle(
-                  color: CupertinoColors.destructiveRed,
-                  fontSize: 12,
-                ),
-                textAlign: TextAlign.center,
+              child: Column(
+                children: [
+                  Text(
+                    _authError!,
+                    style: const TextStyle(
+                      color: CupertinoColors.destructiveRed,
+                      fontSize: 12,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  CupertinoButton(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    color: CupertinoColors.activeBlue,
+                    onPressed: () {
+                      setState(() {
+                        _showCustomApi = true;
+                        _apiIdController.text = '30662321';
+                        _apiHashController.text = 'cf007e0155c41fd1aa9b114b592377e0';
+                        _authError = null;
+                      });
+                    },
+                    child: const Text(
+                      'Use Workspace API (30662321)',
+                      style: TextStyle(fontSize: 11, color: CupertinoColors.white),
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 16),
@@ -441,6 +472,29 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 controller: _apiHashController,
                 placeholder: 'API Hash (hex string)',
                 padding: const EdgeInsets.all(12),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CupertinoButton(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    onPressed: () {
+                      _apiIdController.text = '6';
+                      _apiHashController.text = 'eb06d4abfb49dc3eeb1aeb9890c81e47';
+                    },
+                    child: const Text('Telegram Android (6)', style: TextStyle(fontSize: 12)),
+                  ),
+                  const SizedBox(width: 8),
+                  CupertinoButton(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    onPressed: () {
+                      _apiIdController.text = '30662321';
+                      _apiHashController.text = 'cf007e0155c41fd1aa9b114b592377e0';
+                    },
+                    child: const Text('Workspace API (30662321)', style: TextStyle(fontSize: 12)),
+                  ),
+                ],
               ),
               const SizedBox(height: 8),
             ],

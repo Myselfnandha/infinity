@@ -82,5 +82,10 @@ void main() {
       );
       tdlib.resetToPhoneNumber();
     });
+
+    test('activeApiId and activeApiHash properties exist and start unconfigured', () {
+      expect(tdlib.activeApiId == null || tdlib.activeApiId is int, isTrue);
+      expect(tdlib.activeApiHash == null || tdlib.activeApiHash is String, isTrue);
+    });
   });
 }

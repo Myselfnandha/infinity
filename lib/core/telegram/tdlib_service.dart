@@ -77,21 +77,47 @@ class TdlibService {
   final Map<String, Completer<TdObject>> _pendingRequests = {};
   final Random _random = Random();
 
-  // This code for ensuring TDLib parameters handshake completes before dispatching auth requests
-  final Completer<void> _parametersCompleter = Completer<void>();
+  // Active Telegram API credentials applied to the current TDLib session
+  int? _activeApiId;
+  int? get activeApiId => _activeApiId;
+
+  String? _activeApiHash;
+  String? get activeApiHash => _activeApiHash;
+
+  // Synchronization completer to ensure TDLib parameters handshake completes before dispatching auth requests
+  Completer<void> _parametersCompleter = Completer<void>();
   bool _parametersSet = false;
 
-  // This code for awaiting completion of TDLib parameter initialization
-  Future<void> _ensureParametersSet() async {
+  // Awaits completion of TDLib parameter initialization before processing subsequent commands
+  Future<void> _ensureParametersSet({int? apiId, String? apiHash}) async {
     if (_parametersSet) return;
-    await initialize();
+    await initialize(apiId: apiId, apiHash: apiHash);
     if (_parametersSet) return;
     try {
       await _parametersCompleter.future.timeout(const Duration(seconds: 15));
     } catch (_) {}
   }
 
-  // This code for resetting auth state to phone number entry from QR mode
+  // Restarts the TDLib client session cleanly when switching API credentials
+  Future<void> restartClient({int? apiId, String? apiHash}) async {
+    if (_clientId != 0) {
+      try {
+        await sendAsync(const Close());
+      } catch (_) {}
+    }
+    _isReceiving = false;
+    _isInitialized = false;
+    _clientId = 0;
+    _parametersSet = false;
+    _parametersCompleter = Completer<void>();
+    _pendingRequests.clear();
+    _currentAuthState = TelegramAuthState.uninitialized;
+    _authStateController.add(_currentAuthState);
+
+    await initialize(apiId: apiId, apiHash: apiHash);
+  }
+
+  // Resets auth state to phone number entry from QR mode
   void resetToPhoneNumber() {
     _qrCodeLink = null;
     _currentAuthState = TelegramAuthState.waitingForPhoneNumber;
@@ -163,10 +189,29 @@ class TdlibService {
       final dbDir = '${appDir.path}/tdlib';
       final filesDir = '${appDir.path}/tdlib_files';
 
-      // This code for resolving Telegram API credentials from configured arguments or preferences
+      // Resolve Telegram API credentials prioritizing runtime arguments, stored preferences, or platform defaults
       final prefs = await SharedPreferences.getInstance();
-      final finalApiId = apiId ?? prefs.getInt('telegram_api_id') ?? 2496;
-      final finalApiHash = apiHash ?? prefs.getString('telegram_api_hash') ?? '8da85b0d5b1652522bc46057082da478';
+      final defaultApiId = Platform.isAndroid ? 6 : 2496;
+      final defaultApiHash = Platform.isAndroid
+          ? 'eb06d4abfb49dc3eeb1aeb9890c81e47'
+          : '8da85b0d5b1652522bc46057082da478';
+
+      final finalApiId = apiId ?? prefs.getInt('telegram_api_id') ?? defaultApiId;
+      final finalApiHash = apiHash ?? prefs.getString('telegram_api_hash') ?? defaultApiHash;
+
+      _activeApiId = finalApiId;
+      _activeApiHash = finalApiHash;
+
+      final isTelegramAndroid = finalApiId == 6;
+      final deviceModel = isTelegramAndroid
+          ? (Platform.isAndroid ? 'Android' : 'Desktop')
+          : (Platform.isAndroid ? 'Android' : 'Desktop');
+      final systemVersion = isTelegramAndroid && Platform.isAndroid
+          ? 'SDK 34'
+          : (Platform.operatingSystemVersion.isNotEmpty
+              ? Platform.operatingSystemVersion
+              : 'Android 14');
+      final appVersion = isTelegramAndroid ? '10.14.0' : '1.0.0';
 
       final res = await sendAsync(
         SetTdlibParameters(
@@ -181,9 +226,9 @@ class TdlibService {
           apiId: finalApiId,
           apiHash: finalApiHash,
           systemLanguageCode: 'en',
-          deviceModel: Platform.isAndroid ? 'Android' : 'Desktop',
-          systemVersion: Platform.operatingSystemVersion,
-          applicationVersion: '1.0.0',
+          deviceModel: deviceModel,
+          systemVersion: systemVersion,
+          applicationVersion: appVersion,
         ),
       );
       if (res is! TdError) {
