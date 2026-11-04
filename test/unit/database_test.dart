@@ -204,5 +204,190 @@ void main() {
       final notFound = await db.getMediaByHash('non_existent_hash');
       expect(notFound, isNull);
     });
+
+    test('insertAlbum, linkMediaToAlbum, and watchMediaForAlbum relations', () async {
+      // This code for testing album entity creation and media relation mapping
+      await db.insertAlbum(
+        AlbumsCompanion.insert(
+          id: 'album_vacation',
+          title: 'Summer Vacation',
+          dateCreated: DateTime.now(),
+        ),
+      );
+
+      final albums = await db.watchAlbums().first;
+      expect(albums.length, equals(1));
+      expect(albums.first.title, equals('Summer Vacation'));
+
+      // Insert media item and link to album
+      await db.insertMediaItem(
+        MediaItemsCompanion.insert(
+          id: 'photo_beach',
+          mediaType: 'image',
+          fileSize: 5000,
+          dateAdded: DateTime.now(),
+        ),
+      );
+      await db.linkMediaToAlbum('photo_beach', 'album_vacation');
+
+      final albumMedia = await db.watchMediaForAlbum('album_vacation').first;
+      expect(albumMedia.length, equals(1));
+      expect(albumMedia.first.id, equals('photo_beach'));
+    });
+
+    test('updateLocation, updatePerceptualHash, and getImagesWithoutPerceptualHash', () async {
+      // This code for testing media metadata updates and perceptual hash queries
+      await db.insertMediaItem(
+        MediaItemsCompanion.insert(
+          id: 'photo_locate',
+          filePath: const drift.Value('/storage/pic.jpg'),
+          mediaType: 'image',
+          fileSize: 3000,
+          dateAdded: DateTime.now(),
+        ),
+      );
+
+      final unhashed = await db.getImagesWithoutPerceptualHash();
+      expect(unhashed.any((i) => i.id == 'photo_locate'), isTrue);
+
+      await db.updatePerceptualHash('photo_locate', '1010101010101010');
+      final unhashedAfter = await db.getImagesWithoutPerceptualHash();
+      expect(unhashedAfter.any((i) => i.id == 'photo_locate'), isFalse);
+
+      final duplicateCandidates = await db.watchDuplicateCandidates().first;
+      expect(duplicateCandidates.any((i) => i.id == 'photo_locate'), isTrue);
+
+      await db.updateLocation('photo_locate', 40.7128, -74.0060, 'New York, USA');
+      final updated = await db.getMediaItem('photo_locate');
+      expect(updated!.latitude, closeTo(40.7128, 0.001));
+      expect(updated.longitude, closeTo(-74.0060, 0.001));
+      expect(updated.locationName, equals('New York, USA'));
+    });
+
+    test('setPinnedOffline, setCloudState, and getEvictableCacheItems', () async {
+      // This code for testing cache management states and evictable item querying
+      await db.insertMediaItem(
+        MediaItemsCompanion.insert(
+          id: 'synced_item',
+          filePath: const drift.Value('/cache/synced.jpg'),
+          mediaType: 'image',
+          fileSize: 4000,
+          dateAdded: DateTime.now(),
+          syncStatus: const drift.Value('synced'),
+        ),
+      );
+
+      var evictable = await db.getEvictableCacheItems(10);
+      expect(evictable.any((i) => i.id == 'synced_item'), isTrue);
+
+      // Pin offline
+      await db.setPinnedOffline('synced_item', true);
+      evictable = await db.getEvictableCacheItems(10);
+      expect(evictable.any((i) => i.id == 'synced_item'), isFalse);
+
+      // Set cloud state
+      await db.setCloudState('synced_item', 'CLOUD_ONLY');
+      final item = await db.getMediaItem('synced_item');
+      expect(item!.cloudState, equals('CLOUD_ONLY'));
+      expect(item.isPinnedOffline, isTrue);
+    });
+
+    test('getUnsyncedMedia and updateSyncStatus operations', () async {
+      // This code for testing query for unsynced local files and status transitions
+      await db.insertMediaItem(
+        MediaItemsCompanion.insert(
+          id: 'unsynced_item',
+          mediaType: 'image',
+          fileSize: 2000,
+          dateAdded: DateTime.now(),
+          syncStatus: const drift.Value('local'),
+        ),
+      );
+
+      final unsynced = await db.getUnsyncedMedia();
+      expect(unsynced.any((i) => i.id == 'unsynced_item'), isTrue);
+
+      await db.updateSyncStatus(
+        'unsynced_item',
+        'synced',
+        telegramFileId: 'tg_file_99',
+        telegramMessageId: 1234,
+        telegramChatId: -100123456,
+        telegramTopicId: 101,
+      );
+
+      final syncedItem = await db.getMediaItem('unsynced_item');
+      expect(syncedItem!.syncStatus, equals('synced'));
+      expect(syncedItem.telegramFileId, equals('tg_file_99'));
+      expect(syncedItem.telegramMessageId, equals(1234));
+      expect(syncedItem.telegramChatId, equals(-100123456));
+      expect(syncedItem.telegramTopicId, equals(101));
+    });
+
+    test('deleteSyncTask and updateTaskStatus', () async {
+      // This code for testing sync task updates, retries, and task deletion
+      await db.insertSyncTask(
+        SyncQueueCompanion.insert(
+          id: 'task_to_update',
+          mediaId: 'item_x',
+          taskType: 'upload',
+          status: 'pending',
+          createdAt: DateTime.now(),
+        ),
+      );
+
+      await db.updateTaskStatus(
+        'task_to_update',
+        'failed',
+        errorMessage: 'Network timeout',
+        progress: 0.5,
+        retryCount: 1,
+      );
+
+      var tasks = await db.watchPendingSyncTasks().first;
+      expect(tasks.any((t) => t.id == 'task_to_update'), isFalse); // only 'pending'/'inProgress'
+
+      final deletedCount = await db.deleteSyncTask('task_to_update');
+      expect(deletedCount, equals(1));
+    });
+
+    test('searchMedia filters by files type, offline pin, location presence, and endDate', () async {
+      // This code for testing comprehensive searchMedia filter combination
+      final pastDate = DateTime(2025, 1, 10);
+      final futureDate = DateTime(2025, 12, 10);
+
+      await db.insertMediaItem(
+        MediaItemsCompanion.insert(
+          id: 'doc_contract',
+          mediaType: 'document',
+          fileSize: 5000,
+          dateAdded: pastDate,
+          isPinnedOffline: const drift.Value(true),
+          latitude: const drift.Value(37.7749),
+          longitude: const drift.Value(-122.4194),
+          locationName: const drift.Value('San Francisco, USA'),
+        ),
+      );
+
+      // Filter by mediaType: files
+      final fileResults = await db.searchMedia(mediaType: 'files').first;
+      expect(fileResults.any((m) => m.id == 'doc_contract'), isTrue);
+
+      // Filter by isPinnedOffline: true
+      final pinnedResults = await db.searchMedia(isPinnedOffline: true).first;
+      expect(pinnedResults.any((m) => m.id == 'doc_contract'), isTrue);
+
+      // Filter by hasLocation: true
+      final locationResults = await db.searchMedia(hasLocation: true).first;
+      expect(locationResults.any((m) => m.id == 'doc_contract'), isTrue);
+
+      // Filter by endDate before pastDate should yield empty
+      final emptyResults = await db.searchMedia(endDate: pastDate.subtract(const Duration(days: 1))).first;
+      expect(emptyResults.any((m) => m.id == 'doc_contract'), isFalse);
+
+      // Filter by endDate after pastDate should yield item
+      final validEndResults = await db.searchMedia(endDate: futureDate).first;
+      expect(validEndResults.any((m) => m.id == 'doc_contract'), isTrue);
+    });
   });
 }
