@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AppPreferences {
@@ -17,6 +18,9 @@ class AppPreferences {
   static const String keySyncScheduleFrequency = 'sync_schedule_frequency';
   static const String keyTelegramApiId = 'telegram_api_id';
   static const String keyTelegramApiHash = 'telegram_api_hash';
+  static const String keyVaultChatId = 'vault_chat_id';
+  static const String keyVaultChatTitle = 'vault_chat_title';
+  static const String keyVaultTopics = 'vault_topics_json';
 
   final SharedPreferences _prefs;
 
@@ -123,4 +127,35 @@ class AppPreferences {
   // This code for setting user configured Telegram API Hash
   Future<bool> setTelegramApiHash(String? hash) =>
       hash == null ? _prefs.remove(keyTelegramApiHash) : _prefs.setString(keyTelegramApiHash, hash);
+
+  // This code for getting persisted Telegram Vault Supergroup chat ID
+  int? get vaultChatId => _prefs.getInt(keyVaultChatId);
+
+  // This code for saving persisted Telegram Vault Supergroup chat ID
+  Future<bool> setVaultChatId(int? id) =>
+      id == null ? _prefs.remove(keyVaultChatId) : _prefs.setInt(keyVaultChatId, id);
+
+  // This code for getting persisted Telegram Vault Supergroup chat title
+  String? get vaultChatTitle => _prefs.getString(keyVaultChatTitle);
+
+  // This code for saving persisted Telegram Vault Supergroup chat title
+  Future<bool> setVaultChatTitle(String? title) =>
+      title == null ? _prefs.remove(keyVaultChatTitle) : _prefs.setString(keyVaultChatTitle, title);
+
+  // This code for getting persisted Telegram Vault forum topic thread mappings
+  Map<String, int> get vaultTopics {
+    final raw = _prefs.getString(keyVaultTopics);
+    if (raw == null || raw.isEmpty) return {};
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is Map<String, dynamic>) {
+        return decoded.map((k, v) => MapEntry(k, v is int ? v : int.tryParse(v.toString()) ?? 0));
+      }
+    } catch (_) {}
+    return {};
+  }
+
+  // This code for saving persisted Telegram Vault forum topic thread mappings
+  Future<bool> setVaultTopics(Map<String, int> topics) =>
+      _prefs.setString(keyVaultTopics, jsonEncode(topics));
 }

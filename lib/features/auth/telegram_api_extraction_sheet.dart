@@ -12,11 +12,13 @@ import 'telegram_api_extractor_helper.dart';
 class TelegramApiExtractionSheet extends ConsumerStatefulWidget {
   const TelegramApiExtractionSheet({super.key});
 
-  /// Displays the modal sheet and returns extracted credentials map when completed
+  /// Displays the full-screen view and returns extracted credentials map when completed
   static Future<Map<String, dynamic>?> show(BuildContext context) {
-    return showCupertinoModalPopup<Map<String, dynamic>>(
-      context: context,
-      builder: (ctx) => const TelegramApiExtractionSheet(),
+    return Navigator.of(context, rootNavigator: true).push<Map<String, dynamic>>(
+      CupertinoPageRoute(
+        fullscreenDialog: true,
+        builder: (ctx) => const TelegramApiExtractionSheet(),
+      ),
     );
   }
 
@@ -184,26 +186,24 @@ class _TelegramApiExtractionSheetState extends ConsumerState<TelegramApiExtracti
     });
   }
 
-  /// Persists credentials to AppPreferences, restarts TDLib client, and dismisses modal sheet
+  /// Persists credentials to AppPreferences, dismisses full-screen view cleanly, then restarts TDLib
   Future<void> _saveAndRestartTdlib(int apiId, String apiHash) async {
     try {
       final prefs = ref.read(preferencesProvider);
       await prefs.setTelegramApiId(apiId);
       await prefs.setTelegramApiHash(apiHash);
 
+      // Dismiss route immediately before reinitializing TDLib to eliminate modal shuttering
+      if (mounted) {
+        Navigator.of(context).pop({
+          'apiId': apiId,
+          'apiHash': apiHash,
+        });
+      }
+
+      // Smoothly restart TDLib client in the background with newly acquired API credentials
       final tdlib = ref.read(tdlibServiceProvider);
       await tdlib.restartClient(apiId: apiId, apiHash: apiHash);
-
-      if (mounted) {
-        // Provide visual confirmation delay before dismissing
-        await Future.delayed(const Duration(milliseconds: 900));
-        if (mounted) {
-          Navigator.of(context).pop({
-            'apiId': apiId,
-            'apiHash': apiHash,
-          });
-        }
-      }
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -235,59 +235,23 @@ class _TelegramApiExtractionSheetState extends ConsumerState<TelegramApiExtracti
 
   @override
   Widget build(BuildContext context) {
-    final mediaQuery = MediaQuery.of(context);
-    final sheetHeight = mediaQuery.size.height * 0.88;
-
-    return Container(
-      height: sheetHeight,
-      decoration: BoxDecoration(
-        color: CupertinoColors.systemBackground.resolveFrom(context),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+    return CupertinoPageScaffold(
+      navigationBar: CupertinoNavigationBar(
+        middle: const Text('Auto-Connect Telegram API'),
+        leading: const Icon(
+          CupertinoIcons.shield_lefthalf_fill,
+          color: CupertinoColors.activeBlue,
+          size: 20,
+        ),
+        trailing: CupertinoButton(
+          padding: EdgeInsets.zero,
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel', style: TextStyle(fontSize: 15)),
+        ),
       ),
       child: SafeArea(
-        top: false,
         child: Column(
           children: [
-            // Drag handle and Navigation bar header
-            Padding(
-              padding: const EdgeInsets.only(top: 8, bottom: 4),
-              child: Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: CupertinoColors.systemGrey4.resolveFrom(context),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                children: [
-                  const Icon(
-                    CupertinoIcons.shield_lefthalf_fill,
-                    color: CupertinoColors.activeBlue,
-                    size: 22,
-                  ),
-                  const SizedBox(width: 8),
-                  const Expanded(
-                    child: Text(
-                      'Auto-Connect Telegram API',
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  CupertinoButton(
-                    padding: EdgeInsets.zero,
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Cancel', style: TextStyle(fontSize: 15)),
-                  ),
-                ],
-              ),
-            ),
-
             // Live progress & extraction banner
             Container(
               width: double.infinity,

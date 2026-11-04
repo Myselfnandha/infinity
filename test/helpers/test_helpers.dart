@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:connectivity_plus_platform_interface/connectivity_plus_platform_interface.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart' show DefaultMaterialLocalizations;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/src/internals.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -88,6 +89,9 @@ class FakeTdlibService extends Fake implements TdlibService {
 
   @override
   Stream<TelegramAuthState> get authStateStream => _authStateController.stream;
+
+  @override
+  Stream<td.UpdateFile> get fileUpdateStream => const Stream.empty();
 
   @override
   String? get qrCodeLink => 'https://t.me/fake_qr_code_link';
@@ -199,6 +203,11 @@ Widget buildTestApp({
     ],
     child: CupertinoApp(
       home: child,
+      localizationsDelegates: const [
+        DefaultMaterialLocalizations.delegate,
+        DefaultCupertinoLocalizations.delegate,
+        DefaultWidgetsLocalizations.delegate,
+      ],
     ),
   );
 }

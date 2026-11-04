@@ -23,6 +23,7 @@ class _VaultAccountScreenState extends ConsumerState<VaultAccountScreen> {
   final TextEditingController _apiIdController = TextEditingController();
   final TextEditingController _apiHashController = TextEditingController();
   bool _showCustomApi = false;
+  bool _obscurePassword = true;
 
   bool _isLoading = false;
   String? _errorMessage;
@@ -434,8 +435,18 @@ class _VaultAccountScreenState extends ConsumerState<VaultAccountScreen> {
                       CupertinoTextField(
                         controller: _passwordController,
                         placeholder: 'Enter 2FA cloud password',
-                        obscureText: true,
+                        keyboardType: TextInputType.visiblePassword,
+                        obscureText: _obscurePassword,
                         padding: const EdgeInsets.all(14),
+                        suffix: CupertinoButton(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                          child: Icon(
+                            _obscurePassword ? CupertinoIcons.eye : CupertinoIcons.eye_slash,
+                            size: 20,
+                            color: CupertinoColors.secondaryLabel,
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 14),
                       CupertinoButton.filled(

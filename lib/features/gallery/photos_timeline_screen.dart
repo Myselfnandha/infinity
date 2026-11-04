@@ -1,12 +1,15 @@
 // This code for rendering the main photos timeline with pinch zoom, multi-select, and Telegram sync status
 import 'dart:io';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart' show Colors;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../core/database/app_database.dart';
 import '../../core/di/providers.dart';
 import '../../core/storage/gallery_service.dart';
 import '../../core/storage/zip_export_service.dart';
+import '../../core/sync/sync_engine.dart';
+import '../backup/backup_telemetry_sheet.dart';
 import '../viewer/media_viewer_screen.dart';
 
 // This code for managing interactive timeline state including selection and dynamic grid scaling
@@ -33,8 +36,10 @@ class _PhotosTimelineScreenState extends ConsumerState<PhotosTimelineScreen> {
     });
   }
 
-  // This code for scanning device media automatically if local vault is empty
+  // This code for scanning device media automatically if local vault is empty, avoiding duplicate scans
   Future<void> _autoScanIfEmpty() async {
+    final isScanning = ref.read(isMediaScanningProvider);
+    if (isScanning) return;
     final mediaAsync = ref.read(allMediaProvider);
     final items = mediaAsync.value;
     if (items == null || items.isEmpty) {
@@ -50,15 +55,19 @@ class _PhotosTimelineScreenState extends ConsumerState<PhotosTimelineScreen> {
         .setSelectedIds(Set.from(_selectedIds));
   }
 
-  // This code for scanning device storage for new photos and videos
+  // This code for scanning device storage for new photos and videos and notifying sync engine
   Future<void> _scanDevice() async {
+    if (ref.read(isMediaScanningProvider)) return;
     setState(() => _isScanning = true);
+    ref.read(isMediaScanningProvider.notifier).setScanning(true);
     try {
       final db = ref.read(databaseProvider);
       final service = GalleryService(db);
       await service.scanDeviceMedia(limit: 500);
+      await ref.read(syncEngineProvider).autoQueueUnsynced();
     } catch (_) {
     } finally {
+      ref.read(isMediaScanningProvider.notifier).setScanning(false);
       if (mounted) {
         setState(() => _isScanning = false);
       }
@@ -210,10 +219,101 @@ class _PhotosTimelineScreenState extends ConsumerState<PhotosTimelineScreen> {
     return grouped;
   }
 
+  Widget _buildCloudStatusAvatar(UploadTelemetryState telemetry, int pendingCount) {
+    if (telemetry.isPaused) {
+      return Container(
+        width: 30,
+        height: 30,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: const Color(0xFFFFB300).withValues(alpha: 0.15),
+          border: Border.all(color: const Color(0xFFFFB300), width: 1.5),
+        ),
+        child: const Icon(
+          CupertinoIcons.pause_fill,
+          size: 14,
+          color: Color(0xFFFFB300),
+        ),
+      );
+    } else if (telemetry.activeWorkers > 0) {
+      return Container(
+        width: 30,
+        height: 30,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: CupertinoColors.activeBlue.withValues(alpha: 0.12),
+          border: Border.all(color: const Color(0xFF00E5FF), width: 1.5),
+        ),
+        child: const Center(
+          child: CupertinoActivityIndicator(radius: 7),
+        ),
+      );
+    } else if (pendingCount > 0) {
+      return Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: CupertinoColors.systemGrey6,
+              border: Border.all(color: CupertinoColors.systemGrey4, width: 1),
+            ),
+            child: const Icon(
+              CupertinoIcons.cloud_upload,
+              size: 15,
+              color: CupertinoColors.activeBlue,
+            ),
+          ),
+          Positioned(
+            right: -2,
+            top: -2,
+            child: Container(
+              padding: const EdgeInsets.all(2.5),
+              decoration: const BoxDecoration(
+                color: Color(0xFF00E5FF),
+                shape: BoxShape.circle,
+              ),
+              constraints: const BoxConstraints(minWidth: 14, minHeight: 14),
+              child: Text(
+                '$pendingCount',
+                style: const TextStyle(
+                  color: Colors.black,
+                  fontSize: 8,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+        ],
+      );
+    } else {
+      return Container(
+        width: 30,
+        height: 30,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: const Color(0xFF00E676).withValues(alpha: 0.12),
+          border: Border.all(color: const Color(0xFF00E676), width: 1.5),
+        ),
+        child: const Icon(
+          CupertinoIcons.checkmark_alt,
+          size: 16,
+          color: Color(0xFF00E676),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final mediaAsync = ref.watch(allMediaProvider);
     final pendingTasks = ref.watch(pendingTasksProvider).value ?? [];
+    final telemetryAsync = ref.watch(uploadTelemetryProvider);
+    final telemetry = telemetryAsync.value ?? ref.watch(syncEngineProvider).currentTelemetry;
+    final isScanning = _isScanning || ref.watch(isMediaScanningProvider);
 
     return CupertinoPageScaffold(
       navigationBar: CupertinoNavigationBar(
@@ -224,10 +324,36 @@ class _PhotosTimelineScreenState extends ConsumerState<PhotosTimelineScreen> {
                 child: const Text('Cancel'),
               )
             : null,
-        middle: Text(
-          _isSelectionMode
-              ? '${_selectedIds.length} Selected'
-              : 'Infinity Photos',
+        middle: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onVerticalDragEnd: (details) {
+            if (details.primaryVelocity != null && details.primaryVelocity! > 150) {
+              BackupTelemetrySheet.show(context);
+            }
+          },
+          onTap: () {
+            if (!_isSelectionMode) {
+              BackupTelemetrySheet.show(context);
+            }
+          },
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _isSelectionMode
+                    ? '${_selectedIds.length} Selected'
+                    : 'Infinity Photos',
+              ),
+              if (!_isSelectionMode) ...[
+                const SizedBox(width: 4),
+                const Icon(
+                  CupertinoIcons.chevron_down,
+                  size: 14,
+                  color: CupertinoColors.secondaryLabel,
+                ),
+              ],
+            ],
+          ),
         ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
@@ -255,8 +381,8 @@ class _PhotosTimelineScreenState extends ConsumerState<PhotosTimelineScreen> {
                 },
                 orElse: () => const SizedBox.shrink(),
               )
-            // This code for entering selection mode
-            else
+            // This code for entering selection mode and interactive Cloud Status Avatar
+            else ...[
               mediaAsync.maybeWhen(
                 data: (items) => CupertinoButton(
                   padding: EdgeInsets.zero,
@@ -269,31 +395,36 @@ class _PhotosTimelineScreenState extends ConsumerState<PhotosTimelineScreen> {
                   child: const Text('Select'),
                 ),
               ),
+              const SizedBox(width: 8),
+              CupertinoButton(
+                padding: EdgeInsets.zero,
+                onPressed: () => BackupTelemetrySheet.show(context),
+                child: _buildCloudStatusAvatar(telemetry, pendingTasks.length),
+              ),
+            ],
           ],
         ),
       ),
       child: SafeArea(
         child: Column(
           children: [
-            // This code for displaying active background upload sync progress banner
-            if (pendingTasks.isNotEmpty)
+            // Active Scanning HUD indicator to prevent jarring empty states
+            if (isScanning)
               Container(
                 width: double.infinity,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                color: CupertinoColors.activeBlue.withValues(alpha: 0.12),
-                child: Row(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                color: CupertinoColors.activeBlue.withValues(alpha: 0.1),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const CupertinoActivityIndicator(radius: 8),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'Syncing ${pendingTasks.length} ${pendingTasks.length == 1 ? 'item' : 'items'} to Infinity Vault...',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: CupertinoColors.activeBlue,
-                        ),
+                    CupertinoActivityIndicator(radius: 7),
+                    SizedBox(width: 8),
+                    Text(
+                      'Scanning device for new photos & videos...',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: CupertinoColors.activeBlue,
                       ),
                     ),
                   ],

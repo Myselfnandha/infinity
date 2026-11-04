@@ -73,7 +73,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
 
-      expect(find.text('Welcome (1/7)'), findsOneWidget);
+      expect(find.text('Welcome (1/6)'), findsOneWidget);
       expect(find.text('Welcome to Infinity'), findsOneWidget);
       expect(find.text('Get Started'), findsOneWidget);
 
@@ -81,7 +81,7 @@ void main() {
       await tester.tap(find.text('Get Started'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Welcome (2/7)'), findsOneWidget);
+      expect(find.text('Welcome (2/6)'), findsOneWidget);
       expect(find.text('Telegram Connection'), findsOneWidget);
       expect(find.text('Send Verification Code'), findsOneWidget);
 
@@ -130,38 +130,34 @@ void main() {
       await tester.tap(find.text('Get Started'));
       await tester.pumpAndSettle();
 
-      // 2: Auth -> Media Permissions
+      // 2: Auth -> Unified Permissions
       await tester.tap(find.text('Configure Later'));
       await tester.pumpAndSettle();
-      expect(find.text('Welcome (3/7)'), findsOneWidget);
+      expect(find.text('Welcome (3/6)'), findsOneWidget);
+      expect(find.text('Vault Permissions'), findsOneWidget);
       expect(find.text('Photo & Video Access'), findsOneWidget);
-
-      // 3: Media Permissions -> Notification Permissions
-      await tester.tap(find.text('Skip for Now'));
-      await tester.pumpAndSettle();
-      expect(find.text('Welcome (4/7)'), findsOneWidget);
       expect(find.text('Background Sync Alerts'), findsOneWidget);
 
-      // 4: Notification Permissions -> Folder Selection
-      await tester.tap(find.text('Skip'));
+      // 3: Unified Permissions -> Folder Selection
+      await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
-      expect(find.text('Welcome (5/7)'), findsOneWidget);
+      expect(find.text('Welcome (4/6)'), findsOneWidget);
       expect(find.text('Select Backup Folders'), findsOneWidget);
       expect(find.text('Camera Roll'), findsOneWidget);
       expect(find.text('Videos'), findsOneWidget);
       expect(find.text('Screenshots'), findsOneWidget);
 
-      // 5: Folder Selection -> Sync Preferences
+      // 4: Folder Selection -> Sync Preferences
       await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
-      expect(find.text('Welcome (6/7)'), findsOneWidget);
+      expect(find.text('Welcome (5/6)'), findsOneWidget);
       expect(find.text('Sync Preferences'), findsOneWidget);
       expect(find.text('Upload Over Wi-Fi Only'), findsOneWidget);
 
-      // 6: Sync Preferences -> Security Page
+      // 5: Sync Preferences -> Security Page
       await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
-      expect(find.text('Welcome (7/7)'), findsOneWidget);
+      expect(find.text('Welcome (6/6)'), findsOneWidget);
       expect(find.text('Security & App Lock'), findsOneWidget);
       expect(find.text('Complete Setup'), findsOneWidget);
 

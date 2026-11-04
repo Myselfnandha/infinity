@@ -360,6 +360,24 @@ class AppDatabase extends _$AppDatabase {
         .watch();
   }
 
+  // Streams media items currently queued or actively uploading to Telegram
+  Stream<List<MediaItem>> watchPendingUploadMedia() {
+    final query = select(mediaItems).join([
+      innerJoin(
+        syncQueue,
+        syncQueue.mediaId.equalsExp(mediaItems.id),
+      ),
+    ])
+      ..where(syncQueue.status.equals('pending') |
+          syncQueue.status.equals('inProgress'))
+      ..orderBy([
+        OrderingTerm(expression: syncQueue.priority, mode: OrderingMode.desc),
+        OrderingTerm(expression: syncQueue.createdAt, mode: OrderingMode.asc),
+      ]);
+
+    return query.watch().map((rows) => rows.map((r) => r.readTable(mediaItems)).toList());
+  }
+
   Future<int> insertSyncTask(SyncQueueCompanion task) {
     return into(syncQueue).insertOnConflictUpdate(task);
   }
@@ -393,6 +411,9 @@ class AppDatabase extends _$AppDatabase {
           ..where((tbl) =>
               tbl.syncStatus.equals('synced') &
               tbl.isPinnedOffline.equals(false) &
+              (tbl.cloudState.equals('CACHED') |
+                  tbl.cloudState.equals('AVAILABLE_LOCALLY') |
+                  tbl.cloudState.equals('LOCAL_ONLY')) &
               tbl.filePath.isNotNull())
           ..orderBy([
             (tbl) => OrderingTerm(expression: tbl.dateAdded, mode: OrderingMode.asc)

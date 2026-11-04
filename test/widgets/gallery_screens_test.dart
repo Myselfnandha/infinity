@@ -57,6 +57,9 @@ void main() {
       expect(find.text('No media loaded yet'), findsOneWidget);
       expect(find.text('Drag down to refresh or scan device media'), findsOneWidget);
       expect(find.byType(CupertinoButton), findsWidgets);
+
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(milliseconds: 200));
     });
 
     // This code for verifying media rendering and selection mode toggle
@@ -127,6 +130,9 @@ void main() {
       await tester.tap(find.text('Cancel'));
       await tester.pump();
       expect(find.text('Select'), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(milliseconds: 100));
     });
 
     // This code for testing Select All and batch favoriting in PhotosTimelineScreen
@@ -285,8 +291,12 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
 
-      // Tap on the photo item
-      await tester.tap(find.byType(GestureDetector).last);
+      // Tap on the photo item inside grid
+      final photoTileFinder = find.descendant(
+        of: find.byType(SliverGrid),
+        matching: find.byType(GestureDetector),
+      );
+      await tester.tap(photoTileFinder.first);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
@@ -319,6 +329,9 @@ void main() {
       expect(find.text('No favorites yet'), findsOneWidget);
       expect(find.text('Tap the heart icon on any photo to favorite it'), findsOneWidget);
       expect(find.byIcon(CupertinoIcons.heart), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(milliseconds: 100));
     });
 
     // This code for testing FavoritesScreen populated grid
@@ -357,6 +370,9 @@ void main() {
       // This code for verifying favorite item is rendered in GridView
       expect(find.text('No favorites yet'), findsNothing);
       expect(find.byType(GridView), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(milliseconds: 100));
     });
   });
 }

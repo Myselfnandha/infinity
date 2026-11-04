@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -27,10 +28,15 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   final TextEditingController _apiIdController = TextEditingController();
   final TextEditingController _apiHashController = TextEditingController();
   bool _showCustomApi = false;
+  bool _obscurePassword = true;
 
   int _currentPage = 0;
   bool _isLoading = false;
   String? _authError;
+
+  bool _mediaGranted = false;
+  bool _notificationGranted = false;
+  bool _permissionsRequested = false;
 
   bool _backupCamera = true;
   bool _backupVideos = true;
@@ -65,7 +71,14 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     super.dispose();
   }
 
+  // Dismisses on-screen keyboard and virtual IME
+  void _dismissKeyboard() {
+    FocusScope.of(context).unfocus();
+    SystemChannels.textInput.invokeMethod('TextInput.hide');
+  }
+
   void _nextPage() {
+    _dismissKeyboard();
     _pageController.nextPage(
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOut,
@@ -95,6 +108,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   }
 
   Future<void> _submitPhone() async {
+    _dismissKeyboard();
     final phone = _phoneController.text.trim();
     if (phone.isEmpty) return;
 
@@ -115,6 +129,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   }
 
   Future<void> _submitCode() async {
+    _dismissKeyboard();
     final code = _codeController.text.trim();
     if (code.isEmpty) return;
 
@@ -133,8 +148,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     }
   }
 
-  // This code for submitting 2FA password to TDLib
+  // This code for submitting 2FA password to TDLib with explicit keyboard dismissal
   Future<void> _submitPassword() async {
+    _dismissKeyboard();
     final password = _passwordController.text;
     if (password.isEmpty) return;
 
@@ -170,16 +186,19 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     }
   }
 
-  Future<void> _requestGalleryPermission() async {
-    final state = await PhotoManager.requestPermissionExtend();
-    if (state.isAuth || state.hasAccess) {
-      _nextPage();
-    }
-  }
-
-  Future<void> _requestNotificationPermission() async {
-    await Permission.notification.request();
-    _nextPage();
+  // Automatically triggers native OS permission requests in sequence on entering Screen 3
+  Future<void> _checkAndRequestUnifiedPermissions() async {
+    if (_permissionsRequested) return;
+    _permissionsRequested = true;
+    try {
+      final mediaStatus = await PhotoManager.requestPermissionExtend();
+      _mediaGranted = mediaStatus.isAuth || mediaStatus.hasAccess;
+    } catch (_) {}
+    try {
+      final notifStatus = await Permission.notification.request();
+      _notificationGranted = notifStatus.isGranted;
+    } catch (_) {}
+    if (mounted) setState(() {});
   }
 
   // This code for completing onboarding, saving user preferences, and initiating async media indexing
@@ -201,6 +220,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     if (_backupDownloads) selectedFolders.add('downloads');
     await prefs.setBackupFolderIds(selectedFolders);
 
+    // Set media scanning active before navigation to eliminate post-onboarding empty screen freeze
+    ref.read(isMediaScanningProvider.notifier).setScanning(true);
+
     // This code for navigating to main gallery timeline immediately for fluid UX
     if (mounted) {
       context.go('/');
@@ -212,7 +234,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         final galleryService = GalleryService(db);
         await galleryService.scanDeviceMedia(limit: 500);
         await sync.autoQueueUnsynced();
-      } catch (_) {}
+      } catch (_) {
+      } finally {
+        ref.read(isMediaScanningProvider.notifier).setScanning(false);
+      }
     }());
   }
 
@@ -223,13 +248,21 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
     if (_currentPage == 1 && authState == TelegramAuthState.ready) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        _dismissKeyboard();
         _nextPage();
+      });
+    }
+
+    if (_currentPage == 2) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _dismissKeyboard();
+        _checkAndRequestUnifiedPermissions();
       });
     }
 
     return CupertinoPageScaffold(
       navigationBar: CupertinoNavigationBar(
-        middle: Text('Welcome (${_currentPage + 1}/7)'),
+        middle: Text('Welcome (${_currentPage + 1}/6)'),
       ),
       child: SafeArea(
         child: PageView(
@@ -239,8 +272,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           children: [
             _buildWelcomePage(),
             _buildAuthPage(authState),
-            _buildMediaPermissionPage(),
-            _buildNotificationPermissionPage(),
+            _buildUnifiedPermissionsPage(),
             _buildFolderSelectionPage(),
             _buildSyncPreferencesPage(),
             _buildSecurityPage(),
@@ -417,8 +449,18 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             CupertinoTextField(
               controller: _passwordController,
               placeholder: 'Enter 2FA password',
-              obscureText: true,
+              keyboardType: TextInputType.visiblePassword,
+              obscureText: _obscurePassword,
               padding: const EdgeInsets.all(14),
+              suffix: CupertinoButton(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                child: Icon(
+                  _obscurePassword ? CupertinoIcons.eye : CupertinoIcons.eye_slash,
+                  size: 20,
+                  color: CupertinoColors.secondaryLabel,
+                ),
+              ),
             ),
             const SizedBox(height: 16),
             CupertinoButton.filled(
@@ -540,25 +582,26 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     );
   }
 
-  Widget _buildMediaPermissionPage() {
+  // This code for rendering unified permissions overview and reactive status
+  Widget _buildUnifiedPermissionsPage() {
     return Padding(
-      padding: const EdgeInsets.all(28.0),
+      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           const Icon(
-            CupertinoIcons.photo_on_rectangle,
-            size: 72,
+            CupertinoIcons.checkmark_shield_fill,
+            size: 68,
             color: CupertinoColors.activeBlue,
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
           const Text(
-            'Photo & Video Access',
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            'Vault Permissions',
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           const Text(
-            'Infinity requires read access to your device gallery to automatically scan, display, and back up your memories to your Telegram Vault.',
+            'Infinity requires device gallery access to index your media and notification access to keep background uploads alive without Android interrupting them.',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 14,
@@ -566,57 +609,104 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               height: 1.4,
             ),
           ),
-          const SizedBox(height: 40),
-          CupertinoButton.filled(
-            onPressed: _requestGalleryPermission,
-            child: const Text('Grant Media Permission'),
-          ),
-          const SizedBox(height: 12),
-          CupertinoButton(
-            onPressed: _nextPage,
-            child: const Text('Skip for Now'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // This code for rendering the notification permission educational step
-  Widget _buildNotificationPermissionPage() {
-    return Padding(
-      padding: const EdgeInsets.all(28.0),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(
-            CupertinoIcons.bell_fill,
-            size: 72,
-            color: CupertinoColors.activeBlue,
-          ),
-          const SizedBox(height: 24),
-          const Text(
-            'Background Sync Alerts',
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 12),
-          const Text(
-            'Notification permissions allow Infinity to display an active upload foreground service. This prevents Android from stopping your large photo and video uploads in the background.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 14,
-              color: CupertinoColors.secondaryLabel,
-              height: 1.4,
+          const SizedBox(height: 28),
+          Container(
+            decoration: BoxDecoration(
+              color: CupertinoColors.systemGrey6.resolveFrom(context),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Row(
+                    children: [
+                      const Icon(CupertinoIcons.photo_on_rectangle,
+                          color: CupertinoColors.activeBlue, size: 28),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Photo & Video Access',
+                              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              _mediaGranted ? 'Access granted' : 'Required for gallery scan',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: CupertinoColors.secondaryLabel,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Icon(
+                        _mediaGranted
+                            ? CupertinoIcons.checkmark_circle_fill
+                            : CupertinoIcons.exclamationmark_circle,
+                        color: _mediaGranted
+                            ? CupertinoColors.activeGreen
+                            : CupertinoColors.systemOrange,
+                        size: 24,
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  height: 0.5,
+                  color: CupertinoColors.separator.resolveFrom(context),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Row(
+                    children: [
+                      const Icon(CupertinoIcons.bell_fill,
+                          color: CupertinoColors.activeBlue, size: 28),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Background Sync Alerts',
+                              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              _notificationGranted ? 'Notifications allowed' : 'Prevents Android upload stops',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: CupertinoColors.secondaryLabel,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Icon(
+                        _notificationGranted
+                            ? CupertinoIcons.checkmark_circle_fill
+                            : CupertinoIcons.info_circle,
+                        color: _notificationGranted
+                            ? CupertinoColors.activeGreen
+                            : CupertinoColors.secondaryLabel,
+                        size: 24,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 40),
-          CupertinoButton.filled(
-            onPressed: _requestNotificationPermission,
-            child: const Text('Allow Notifications'),
-          ),
-          const SizedBox(height: 12),
-          CupertinoButton(
-            onPressed: _nextPage,
-            child: const Text('Skip'),
+          const SizedBox(height: 32),
+          SizedBox(
+            width: double.infinity,
+            child: CupertinoButton.filled(
+              onPressed: _nextPage,
+              child: const Text('Continue'),
+            ),
           ),
         ],
       ),

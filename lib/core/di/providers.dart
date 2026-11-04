@@ -110,8 +110,33 @@ final pendingTasksProvider = StreamProvider<List<SyncQueueData>>((ref) {
   return db.watchPendingSyncTasks();
 });
 
+// This code for streaming media items currently pending or in-progress in upload queue
+final pendingUploadMediaProvider = StreamProvider<List<MediaItem>>((ref) {
+  final db = ref.watch(databaseProvider);
+  return db.watchPendingUploadMedia();
+});
+
 // This code for streaming non-photo document and general files from the database
 final filesProvider = StreamProvider<List<MediaItem>>((ref) {
   final db = ref.watch(databaseProvider);
   return db.watchFiles();
 });
+
+// This code for streaming real-time upload throughput and telemetry state
+final uploadTelemetryProvider = StreamProvider<UploadTelemetryState>((ref) async* {
+  final engine = ref.watch(syncEngineProvider);
+  yield engine.currentTelemetry;
+  yield* engine.telemetryStream;
+});
+
+// This code for tracking active device media scanner state to avoid empty screen glitches
+class IsMediaScanningNotifier extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  void setScanning(bool value) => state = value;
+}
+
+final isMediaScanningProvider =
+    NotifierProvider<IsMediaScanningNotifier, bool>(IsMediaScanningNotifier.new);
+

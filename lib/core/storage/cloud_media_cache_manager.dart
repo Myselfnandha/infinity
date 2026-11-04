@@ -45,6 +45,7 @@ class CloudMediaCacheManager {
       return 0;
     }
 
+    final cacheDir = await getCacheDirectory();
     final evictable = await _db.getEvictableCacheItems(50);
     int evictedBytes = 0;
 
@@ -52,6 +53,12 @@ class CloudMediaCacheManager {
       if (currentBytes <= limitBytes) break;
 
       if (item.filePath != null) {
+        // Enforce cache boundary protection: only evict and delete files residing inside media_cache
+        // Camera roll / gallery originals are never deleted during automated cache management
+        if (!item.filePath!.startsWith(cacheDir.path)) {
+          continue;
+        }
+
         final file = File(item.filePath!);
         if (await file.exists()) {
           final size = await file.length();

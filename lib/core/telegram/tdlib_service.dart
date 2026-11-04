@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:handy_tdlib_next/handy_tdlib_next.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../settings/app_preferences.dart';
 
 enum TelegramAuthState {
   uninitialized,
@@ -47,6 +48,10 @@ class TdlibService {
 
   final _authStateController = StreamController<TelegramAuthState>.broadcast();
   Stream<TelegramAuthState> get authStateStream => _authStateController.stream;
+
+  // Stream of TDLib UpdateFile events for live upload throughput calculation
+  final _fileUpdateController = StreamController<UpdateFile>.broadcast();
+  Stream<UpdateFile> get fileUpdateStream => _fileUpdateController.stream;
 
   TelegramAuthState _currentAuthState = TelegramAuthState.uninitialized;
   TelegramAuthState get currentAuthState => _currentAuthState;
@@ -168,6 +173,17 @@ class TdlibService {
     if (_isInitialized && _clientId != 0) return;
 
     final prefs = await SharedPreferences.getInstance();
+    final appPrefs = AppPreferences(prefs);
+    if (_vaultChatId == null && appPrefs.vaultChatId != null) {
+      _vaultChatId = appPrefs.vaultChatId;
+      final savedTopics = appPrefs.vaultTopics;
+      for (final entry in savedTopics.entries) {
+        _namedTopicMap[entry.key] = entry.value;
+        _topicMap[entry.value] = entry.value;
+      }
+      debugPrint('[TDLib] Eagerly restored persisted vault chat ID: $_vaultChatId with ${savedTopics.length} topics');
+    }
+
     final finalApiId = apiId ?? _activeApiId ?? prefs.getInt('telegram_api_id') ?? defaultApiId;
     final finalApiHash = apiHash ?? _activeApiHash ?? prefs.getString('telegram_api_hash') ?? defaultApiHash;
 
@@ -240,9 +256,54 @@ class TdlibService {
         _isolateCommandPort = message;
       } else if (message is String) {
         try {
-          final tdObject = convertJsonToObject(message);
-          if (tdObject != null) {
-            _handleIncomingObject(tdObject);
+          final decoded = jsonDecode(message);
+          if (decoded is Map<String, dynamic>) {
+            // Dual-layer defense: sanitize missing boolean keys for AuthorizationStateWaitPassword
+            if (decoded['@type'] == 'updateAuthorizationState') {
+              final authState = decoded['authorization_state'];
+              if (authState is Map<String, dynamic>) {
+                if (authState['@type'] == 'authorizationStateWaitPassword') {
+                  authState['has_recovery_email_address'] ??= false;
+                  authState['has_passport_data'] ??= false;
+                }
+              }
+            }
+
+            TdObject? tdObject;
+            try {
+              tdObject = convertMapToObject(decoded);
+            } catch (convErr) {
+              debugPrint('[TDLib] convertMapToObject fallback error: $convErr');
+              // Raw map fallback for pending requests resolution via @extra
+              final extra = decoded['@extra'];
+              if (extra != null) {
+                final extraKey = extra.toString();
+                final completer = _pendingRequests.remove(extraKey);
+                if (completer != null && !completer.isCompleted) {
+                  if (decoded['@type'] == 'error') {
+                    completer.complete(TdError(
+                      code: decoded['code'] as int? ?? 500,
+                      message: decoded['message'] as String? ?? 'TDLib Request Error',
+                    ));
+                  } else {
+                    completer.complete(TdError(code: 500, message: 'Deserialization error: $convErr'));
+                  }
+                }
+              }
+              // Raw map fallback for auth state detection
+              if (decoded['@type'] == 'updateAuthorizationState') {
+                final authState = decoded['authorization_state'];
+                if (authState is Map<String, dynamic> &&
+                    authState['@type'] == 'authorizationStateWaitPassword') {
+                  _currentAuthState = TelegramAuthState.waitingForPassword;
+                  _authStateController.add(_currentAuthState);
+                }
+              }
+            }
+
+            if (tdObject != null) {
+              _handleIncomingObject(tdObject);
+            }
           }
         } catch (e) {
           debugPrint('[TDLib] Error parsing incoming TDLib message: $e');
@@ -295,6 +356,11 @@ class TdlibService {
 
     if (object is UpdateAuthorizationState) {
       _handleAuthState(object.authorizationState);
+    }
+
+    // Broadcast file transfer progress updates for real-time telemetry
+    if (object is UpdateFile) {
+      _fileUpdateController.add(object);
     }
 
     _updateController.add(object);
@@ -470,6 +536,7 @@ class TdlibService {
 
   Future<void> _findOrCreateVault() async {
     try {
+      final appPrefs = AppPreferences(await SharedPreferences.getInstance());
       final chatsRes = await sendAsync(
         const GetChats(chatList: ChatListMain(), limit: 100),
       );
@@ -479,6 +546,9 @@ class TdlibService {
           if (chatInfo is Chat && chatInfo.title == 'Infinity Vault') {
             _vaultChatId = chatInfo.id;
             await _ensureDefaultTopics();
+            await appPrefs.setVaultChatId(_vaultChatId);
+            await appPrefs.setVaultChatTitle('Infinity Vault');
+            await appPrefs.setVaultTopics(_namedTopicMap);
             return;
           }
         }
@@ -498,6 +568,9 @@ class TdlibService {
       if (created is Chat) {
         _vaultChatId = created.id;
         await _ensureDefaultTopics();
+        await appPrefs.setVaultChatId(_vaultChatId);
+        await appPrefs.setVaultChatTitle('Infinity Vault');
+        await appPrefs.setVaultTopics(_namedTopicMap);
       }
     } catch (_) {}
   }
@@ -526,6 +599,10 @@ class TdlibService {
       // This code for recording both raw thread ID and named mapping for the created forum topic
       _topicMap[res.messageThreadId] = res.messageThreadId;
       _namedTopicMap[name] = res.messageThreadId;
+      try {
+        final appPrefs = AppPreferences(await SharedPreferences.getInstance());
+        await appPrefs.setVaultTopics(_namedTopicMap);
+      } catch (_) {}
       return res.messageThreadId;
     }
     return null;
@@ -609,5 +686,6 @@ class TdlibService {
     _stopReceiveLoop();
     _updateController.close();
     _authStateController.close();
+    _fileUpdateController.close();
   }
 }
