@@ -89,13 +89,16 @@ class ExifParserService {
     }
   }
 
+  // This code for converting IFD rational degree/minute/second tags to decimal latitude/longitude with NaN guards
   static double? _convertToDegree(IfdTag tag) {
     final values = tag.values.toList();
     if (values.length >= 3) {
       final d = values[0] is Ratio ? (values[0] as Ratio).toDouble() : 0.0;
       final m = values[1] is Ratio ? (values[1] as Ratio).toDouble() : 0.0;
       final s = values[2] is Ratio ? (values[2] as Ratio).toDouble() : 0.0;
-      return d + (m / 60.0) + (s / 3600.0);
+      final result = d + (m / 60.0) + (s / 3600.0);
+      if (result.isNaN || result.isInfinite || result == 0.0) return null;
+      return result;
     }
     return null;
   }

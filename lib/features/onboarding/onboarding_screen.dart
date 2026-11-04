@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -136,9 +137,13 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     _nextPage();
   }
 
-  // This code for completing onboarding and triggering initial device media scan
+  // This code for completing onboarding, saving user preferences, and initiating async media indexing
   Future<void> _finishOnboarding() async {
+    // This code for capturing required providers before navigation to prevent unmounted ref errors
     final prefs = ref.read(preferencesProvider);
+    final db = ref.read(databaseProvider);
+    final sync = ref.read(syncEngineProvider);
+
     await prefs.setOnboardingCompleted(true);
     await prefs.setWifiOnly(_wifiOnly);
     await prefs.setInstantSync(_instantSync);
@@ -151,19 +156,19 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     if (_backupDownloads) selectedFolders.add('downloads');
     await prefs.setBackupFolderIds(selectedFolders);
 
-    // This code for auto-scanning device media immediately upon onboarding completion
-    try {
-      final galleryService = GalleryService(ref.read(databaseProvider));
-      await galleryService.scanDeviceMedia(limit: 500);
-    } catch (_) {}
-
-    // This code for auto-queueing unsynced media to Telegram vault
-    final sync = ref.read(syncEngineProvider);
-    await sync.autoQueueUnsynced();
-
+    // This code for navigating to main gallery timeline immediately for fluid UX
     if (mounted) {
       context.go('/');
     }
+
+    // This code for scanning device media and queueing to Telegram vault in background
+    unawaited(() async {
+      try {
+        final galleryService = GalleryService(db);
+        await galleryService.scanDeviceMedia(limit: 500);
+        await sync.autoQueueUnsynced();
+      } catch (_) {}
+    }());
   }
 
   @override

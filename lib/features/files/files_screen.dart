@@ -132,8 +132,9 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
                       ),
                     ),
                     const SizedBox(height: 6),
+                    // This code for clean vault documents empty state description without internal topic branding
                     Text(
-                      'Tap + above to add documents and files\nbacked up to Telegram #Files topic',
+                      'Tap + above to add documents and files\nsecurely backed up to your personal cloud vault',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 13,

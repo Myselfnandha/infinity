@@ -107,7 +107,14 @@ class _ExifInfoSheetState extends State<ExifInfoSheet> {
                 _buildRow('ISO', _metadata!.iso!),
               if (_metadata!.focalLength != null)
                 _buildRow('Focal Length', _metadata!.focalLength!),
-              if (_metadata!.latitude != null && _metadata!.longitude != null) ...[
+              // This code for rendering valid GPS coordinates with NaN and infinite number protection
+              if (_metadata!.latitude != null &&
+                  _metadata!.longitude != null &&
+                  !_metadata!.latitude!.isNaN &&
+                  !_metadata!.longitude!.isNaN &&
+                  !_metadata!.latitude!.isInfinite &&
+                  !_metadata!.longitude!.isInfinite &&
+                  _metadata!.latitude != 0.0) ...[
                 if (widget.item.locationName == null &&
                     LocationTagService.resolveLocalityTag(
                             _metadata!.latitude!, _metadata!.longitude!) !=
