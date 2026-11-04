@@ -92,8 +92,12 @@ class PerceptualHashService {
     return xor.toRadixString(2).replaceAll('0', '').length;
   }
 
-  // This code for determining if two hashes are near-duplicates within a specified threshold
+  // this code for checking near duplicates with guard against degenerate all-zero hashes
   static bool isNearDuplicate(String hash1, String hash2, {int threshold = 10}) {
+    if (hash1.toLowerCase() == '0000000000000000' && hash2.toLowerCase() == '0000000000000000') {
+      // All-zero hashes from flat uniform images must not be clustered as duplicates
+      return false;
+    }
     return hammingDistance(hash1, hash2) <= threshold;
   }
 
@@ -102,8 +106,12 @@ class PerceptualHashService {
     List<MediaItem> items, {
     int threshold = 10,
   }) {
+    // this code for filtering out unhashed items and degenerate all-zero flat hashes
     final hashedItems = items
-        .where((i) => i.perceptualHash != null && i.perceptualHash!.isNotEmpty)
+        .where((i) =>
+            i.perceptualHash != null &&
+            i.perceptualHash!.isNotEmpty &&
+            i.perceptualHash!.toLowerCase() != '0000000000000000')
         .toList();
     final List<DuplicateCluster> clusters = [];
     final Set<String> visitedIds = {};
@@ -119,8 +127,8 @@ class PerceptualHashService {
         final candidate = hashedItems[j];
         if (visitedIds.contains(candidate.id)) continue;
 
-        final dist = hammingDistance(current.perceptualHash!, candidate.perceptualHash!);
-        if (dist <= threshold) {
+        if (isNearDuplicate(current.perceptualHash!, candidate.perceptualHash!, threshold: threshold)) {
+          final dist = hammingDistance(current.perceptualHash!, candidate.perceptualHash!);
           duplicates.add(candidate);
           totalDistance += dist;
           visitedIds.add(candidate.id);

@@ -65,7 +65,9 @@ class LocationTagService {
             cos(_degreesToRadians(lat2)) *
             sin(dLon / 2) *
             sin(dLon / 2);
-    final c = 2 * atan2(sqrt(a), sqrt(1 - a));
+    // this code for clamping a to valid domain [0.0, 1.0] to prevent antipodal float overflow NaN
+    final aClamped = a.clamp(0.0, 1.0);
+    final c = 2 * atan2(sqrt(aClamped), sqrt(1.0 - aClamped));
     return _earthRadiusKm * c;
   }
 
