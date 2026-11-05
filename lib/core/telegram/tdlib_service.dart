@@ -580,6 +580,7 @@ class TdlibService {
 
     final defaultTopicNames = ['Photos', 'Videos', 'Screenshots', 'Trash', 'Files'];
     for (final name in defaultTopicNames) {
+      if (_namedTopicMap.containsKey(name)) continue;
       await createTopic(name);
     }
   }

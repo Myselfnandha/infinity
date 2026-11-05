@@ -86,7 +86,7 @@ class ZipExportService {
     final Set<String> usedNames = {};
     for (int i = 0; i < files.length; i++) {
       final file = files[i];
-      final originalName = file.path.split(Platform.pathSeparator).last;
+      final originalName = p.basename(file.path);
       String targetName = originalName;
       int counter = 1;
 

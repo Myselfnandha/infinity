@@ -37,62 +37,63 @@ class GalleryService {
 
     final List<MediaItemsCompanion> companions = [];
     for (final asset in assets) {
-      final File? file = await asset.file;
-      if (file == null) continue;
+      try {
+        final File? file = await asset.file;
+        if (file == null) continue;
 
-      final String mediaType = asset.type == AssetType.video ? 'video' : 'image';
+        final String mediaType = asset.type == AssetType.video ? 'video' : 'image';
 
-      // This code for extracting GPS coordinates from asset or EXIF fallback
-      double? lat = asset.latitude != 0.0 ? asset.latitude : null;
-      double? lng = asset.longitude != 0.0 ? asset.longitude : null;
-      if ((lat == null || lng == null) && mediaType == 'image') {
-        final exif = await ExifParserService.parseFile(file.path);
-        if (exif.latitude != null && exif.longitude != null) {
-          lat = exif.latitude;
-          lng = exif.longitude;
-        }
-      }
-
-      // This code for resolving offline human-readable locality name
-      String? locality;
-      if (lat != null && lng != null) {
-        locality = LocationTagService.resolveLocalityTag(lat, lng);
-      }
-
-      // This code for avoiding UI thread jank by extracting small thumbnails for perceptual hashing
-      String? pHash;
-      if (mediaType == 'image') {
-        try {
-          final thumbBytes = await asset.thumbnailDataWithSize(const ThumbnailSize(64, 64));
-          if (thumbBytes != null && thumbBytes.isNotEmpty) {
-            pHash = await PerceptualHashService.computeDHashFromBytes(thumbBytes);
-          } else {
-            pHash = await PerceptualHashService.computeDHash(file.path);
+        double? lat = asset.latitude != 0.0 ? asset.latitude : null;
+        double? lng = asset.longitude != 0.0 ? asset.longitude : null;
+        if ((lat == null || lng == null) && mediaType == 'image') {
+          final exif = await ExifParserService.parseFile(file.path);
+          if (exif.latitude != null && exif.longitude != null) {
+            lat = exif.latitude;
+            lng = exif.longitude;
           }
-        } catch (_) {
-          pHash = null;
         }
-      }
 
-      companions.add(
-        MediaItemsCompanion.insert(
-          id: asset.id.isNotEmpty ? asset.id : _uuid.v4(),
-          filePath: Value(file.path),
-          mediaType: mediaType,
-          width: Value(asset.width),
-          height: Value(asset.height),
-          fileSize: await file.length(),
-          duration: Value(asset.duration),
-          dateTaken: Value(asset.createDateTime),
-          dateAdded: asset.modifiedDateTime,
-          isFavorite: Value(asset.isFavorite),
-          syncStatus: const Value('local'),
-          latitude: Value(lat),
-          longitude: Value(lng),
-          locationName: Value(locality),
-          perceptualHash: Value(pHash),
-        ),
-      );
+        String? locality;
+        if (lat != null && lng != null) {
+          locality = LocationTagService.resolveLocalityTag(lat, lng);
+        }
+
+        String? pHash;
+        if (mediaType == 'image') {
+          try {
+            final thumbBytes = await asset.thumbnailDataWithSize(const ThumbnailSize(64, 64));
+            if (thumbBytes != null && thumbBytes.isNotEmpty) {
+              pHash = await PerceptualHashService.computeDHashFromBytes(thumbBytes);
+            } else {
+              pHash = await PerceptualHashService.computeDHash(file.path);
+            }
+          } catch (_) {
+            pHash = null;
+          }
+        }
+
+        companions.add(
+          MediaItemsCompanion.insert(
+            id: asset.id.isNotEmpty ? asset.id : _uuid.v4(),
+            filePath: Value(file.path),
+            mediaType: mediaType,
+            width: Value(asset.width),
+            height: Value(asset.height),
+            fileSize: await file.length(),
+            duration: Value(asset.duration),
+            dateTaken: Value(asset.createDateTime),
+            dateAdded: asset.modifiedDateTime,
+            isFavorite: Value(asset.isFavorite),
+            syncStatus: const Value('local'),
+            latitude: Value(lat),
+            longitude: Value(lng),
+            locationName: Value(locality),
+            perceptualHash: Value(pHash),
+          ),
+        );
+      } catch (_) {
+        continue;
+      }
     }
 
     // This code for batch inserting media item companions into SQLite in a single transaction

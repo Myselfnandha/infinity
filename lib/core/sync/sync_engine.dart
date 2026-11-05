@@ -6,6 +6,7 @@ import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:handy_tdlib_next/handy_tdlib_next.dart' hide File;
+import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 import '../database/app_database.dart';
 import '../settings/app_preferences.dart';
@@ -341,7 +342,7 @@ class SyncEngine {
     }
 
     final fileName = media.filePath != null
-        ? media.filePath!.split(Platform.pathSeparator).last
+        ? p.basename(media.filePath!)
         : 'Media item';
     _updateTelemetry(
       activeWorkers: 1,

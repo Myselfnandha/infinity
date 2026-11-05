@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:path/path.dart' as p;
 import '../../core/database/app_database.dart';
 import '../../core/di/providers.dart';
 import '../../core/media/perceptual_hash_service.dart';
@@ -312,7 +313,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                           padding: const EdgeInsets.symmetric(horizontal: 4),
                           child: Text(
                             item.filePath != null
-                                ? item.filePath!.split('/').last
+                                ? p.basename(item.filePath!)
                                 : item.id,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,

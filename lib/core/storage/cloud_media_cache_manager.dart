@@ -90,8 +90,11 @@ class CloudMediaCacheManager {
       if (item.filePath != null) {
         final file = File(item.filePath!);
         if (await file.exists()) {
-          freedBytes += await file.length();
-          await file.delete();
+          try {
+            final size = await file.length();
+            await file.delete();
+            freedBytes += size;
+          } catch (_) {}
         }
 
         await (_db.update(_db.mediaItems)..where((tbl) => tbl.id.equals(item.id)))

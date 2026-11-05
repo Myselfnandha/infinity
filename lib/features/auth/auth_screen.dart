@@ -17,6 +17,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   final TextEditingController _codeController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
+  bool _obscurePassword = true;
   String? _error;
 
   @override
@@ -184,11 +185,21 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                   CupertinoTextField(
                     controller: _passwordController,
                     placeholder: 'Enter 2FA Password',
-                    obscureText: true,
+                    keyboardType: TextInputType.visiblePassword,
+                    obscureText: _obscurePassword,
                     padding: const EdgeInsets.all(14),
                     prefix: const Padding(
                       padding: EdgeInsets.only(left: 10),
                       child: Icon(CupertinoIcons.lock),
+                    ),
+                    suffix: CupertinoButton(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                      child: Icon(
+                        _obscurePassword ? CupertinoIcons.eye : CupertinoIcons.eye_slash,
+                        size: 20,
+                        color: CupertinoColors.secondaryLabel,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -231,7 +242,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                   const SizedBox(height: 16),
                   CupertinoButton(
                     onPressed: () {
-                      ref.read(tdlibServiceProvider);
+                      ref.read(tdlibServiceProvider).resetToPhoneNumber();
                     },
                     child: const Text('Back to Phone Login'),
                   ),

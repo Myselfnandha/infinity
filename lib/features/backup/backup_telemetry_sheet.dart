@@ -1,9 +1,9 @@
 // This code for OLED Minimalist operational backup telemetry hub ported from telecloud_photos
-import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
 import '../../core/database/app_database.dart';
 import '../../core/di/providers.dart';
 import '../../core/storage/gallery_service.dart';
@@ -741,7 +741,7 @@ class _BackupTelemetrySheetState extends ConsumerState<BackupTelemetrySheet>
                     final item = items[index];
                     final isVideo = item.mediaType == 'video';
                     final fileName = item.filePath != null
-                        ? item.filePath!.split(Platform.pathSeparator).last
+                        ? p.basename(item.filePath!)
                         : 'Media item ${index + 1}';
                     final sizeMB = (item.fileSize / (1024 * 1024)).toStringAsFixed(1);
 

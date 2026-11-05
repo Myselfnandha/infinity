@@ -200,7 +200,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
                     (context, index) {
                       final item = files[index];
                       final fileName = item.filePath != null
-                          ? item.filePath!.split('/').last
+                          ? p.basename(item.filePath!)
                           : item.id;
                       final ext = fileName.contains('.')
                           ? fileName.split('.').last.toUpperCase()
@@ -280,7 +280,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
 
   // This code for displaying modal popup of file actions (share, pin, sync, trash)
   void _showFileActionSheet(MediaItem item) {
-    final fileName = item.filePath != null ? item.filePath!.split('/').last : item.id;
+    final fileName = item.filePath != null ? p.basename(item.filePath!) : item.id;
 
     showCupertinoModalPopup(
       context: context,

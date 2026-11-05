@@ -2,6 +2,7 @@
 import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
 import '../../core/database/app_database.dart';
 import '../../core/di/providers.dart';
 
@@ -175,7 +176,7 @@ class _TrashScreenState extends ConsumerState<TrashScreen> {
                         onTap: () {
                           // This code for presenting action sheet to restore selected trashed item
                           final displayName = item.filePath != null
-                              ? item.filePath!.split('/').last
+                              ? p.basename(item.filePath!)
                               : 'Media Item';
                           showCupertinoModalPopup(
                             context: context,

@@ -1,6 +1,9 @@
 // This code for managing and displaying Telegram forum supergroup topic albums
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
+import '../../core/database/app_database.dart';
 import '../../core/di/providers.dart';
 import 'album_detail_screen.dart';
 import 'trash_screen.dart';
@@ -49,7 +52,16 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
               if (name.isNotEmpty) {
                 Navigator.of(ctx).pop();
                 final tdlib = ref.read(tdlibServiceProvider);
-                await tdlib.createTopic(name);
+                final topicId = await tdlib.createTopic(name);
+                final db = ref.read(databaseProvider);
+                await db.insertAlbum(
+                  AlbumsCompanion.insert(
+                    id: const Uuid().v4(),
+                    title: name,
+                    topicId: topicId != null ? Value(topicId) : const Value.absent(),
+                    dateCreated: DateTime.now(),
+                  ),
+                );
               }
             },
             child: const Text('Create'),

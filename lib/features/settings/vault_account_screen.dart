@@ -410,7 +410,7 @@ class _VaultAccountScreenState extends ConsumerState<VaultAccountScreen> {
                       CupertinoButton(
                         onPressed: () {
                           setState(() => _errorMessage = null);
-                          tdlib.initialize();
+                          tdlib.resetToPhoneNumber();
                         },
                         child: const Text('Use Phone Number Instead'),
                       ),
