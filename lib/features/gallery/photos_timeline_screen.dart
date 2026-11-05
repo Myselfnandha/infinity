@@ -398,6 +398,7 @@ class _PhotosTimelineScreenState extends ConsumerState<PhotosTimelineScreen> {
               const SizedBox(width: 8),
               CupertinoButton(
                 padding: EdgeInsets.zero,
+                minimumSize: const Size(36, 36),
                 onPressed: () => BackupTelemetrySheet.show(context),
                 child: _buildCloudStatusAvatar(telemetry, pendingTasks.length),
               ),

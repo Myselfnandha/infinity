@@ -220,8 +220,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     if (_backupDownloads) selectedFolders.add('downloads');
     await prefs.setBackupFolderIds(selectedFolders);
 
-    // Set media scanning active before navigation to eliminate post-onboarding empty screen freeze
-    ref.read(isMediaScanningProvider.notifier).setScanning(true);
+    // Capture notifier before unmounting screen via navigation to prevent unmounted ref access
+    final isMediaScanningNotifier = ref.read(isMediaScanningProvider.notifier);
+    isMediaScanningNotifier.setScanning(true);
 
     // This code for navigating to main gallery timeline immediately for fluid UX
     if (mounted) {
@@ -236,7 +237,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         await sync.autoQueueUnsynced();
       } catch (_) {
       } finally {
-        ref.read(isMediaScanningProvider.notifier).setScanning(false);
+        isMediaScanningNotifier.setScanning(false);
       }
     }());
   }

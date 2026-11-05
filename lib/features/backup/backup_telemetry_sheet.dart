@@ -17,11 +17,16 @@ class BackupTelemetrySheet extends ConsumerStatefulWidget {
 
   /// Displays the telemetry sheet as an interactive modal bottom sheet
   static Future<void> show(BuildContext context) {
+    final isDark = CupertinoTheme.brightnessOf(context) == Brightness.dark;
     return showCupertinoModalPopup(
       context: context,
-      builder: (ctx) => const Material(
+      useRootNavigator: true,
+      builder: (ctx) => Material(
         type: MaterialType.transparency,
-        child: BackupTelemetrySheet(),
+        child: Theme(
+          data: isDark ? ThemeData.dark() : ThemeData.light(),
+          child: const BackupTelemetrySheet(),
+        ),
       ),
     );
   }
@@ -99,8 +104,7 @@ class _BackupTelemetrySheetState extends ConsumerState<BackupTelemetrySheet>
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final isDark = CupertinoTheme.brightnessOf(context) == Brightness.dark;
     final engine = ref.watch(syncEngineProvider);
 
     final telemetryAsync = ref.watch(uploadTelemetryProvider);

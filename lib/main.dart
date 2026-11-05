@@ -2,6 +2,7 @@
 import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart' show DefaultMaterialLocalizations;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'core/background/background_controller.dart';
@@ -104,6 +105,11 @@ class _InfinityAppState extends ConsumerState<InfinityApp>
       title: 'Infinity',
       debugShowCheckedModeBanner: false,
       routerConfig: _router!,
+      localizationsDelegates: const [
+        DefaultMaterialLocalizations.delegate,
+        DefaultCupertinoLocalizations.delegate,
+        DefaultWidgetsLocalizations.delegate,
+      ],
       // This code for applying system-adaptive Cupertino theme matching host device light/dark mode
       theme: const CupertinoThemeData(
         primaryColor: CupertinoColors.activeBlue,
