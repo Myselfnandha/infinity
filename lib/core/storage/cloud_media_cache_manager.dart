@@ -1,6 +1,7 @@
 // This code for managing local LRU disk cache and cloud media retention
 import 'dart:io';
 import 'package:drift/drift.dart';
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import '../database/app_database.dart';
 import '../settings/app_preferences.dart';
@@ -15,7 +16,7 @@ class CloudMediaCacheManager {
   // This code for obtaining the dedicated local cache directory for media downloads
   Future<Directory> getCacheDirectory() async {
     final docs = await getApplicationDocumentsDirectory();
-    final dir = Directory('${docs.path}/media_cache');
+    final dir = Directory(p.join(docs.path, 'media_cache'));
     if (!await dir.exists()) {
       await dir.create(recursive: true);
     }
@@ -55,7 +56,7 @@ class CloudMediaCacheManager {
       if (item.filePath != null) {
         // Enforce cache boundary protection: only evict and delete files residing inside media_cache
         // Camera roll / gallery originals are never deleted during automated cache management
-        if (!item.filePath!.startsWith(cacheDir.path)) {
+        if (!p.isWithin(cacheDir.path, item.filePath!)) {
           continue;
         }
 

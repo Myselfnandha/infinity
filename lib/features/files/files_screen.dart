@@ -4,6 +4,7 @@ import 'package:drift/drift.dart' show Value;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../core/database/app_database.dart';
@@ -54,14 +55,14 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
     setState(() => _isCreatingFile = true);
     try {
       final appDir = await getApplicationDocumentsDirectory();
-      final docsDir = Directory('${appDir.path}/vault_documents');
+      final docsDir = Directory(p.join(appDir.path, 'vault_documents'));
       if (!docsDir.existsSync()) {
         docsDir.createSync(recursive: true);
       }
 
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final fileName = 'Infinity_Notes_$timestamp.txt';
-      final file = File('${docsDir.path}/$fileName');
+      final file = File(p.join(docsDir.path, fileName));
       await file.writeAsString(
         'Infinity Vault Document\nCreated: ${DateTime.now().toIso8601String()}\nStored securely on Telegram Supergroup #Files.',
       );

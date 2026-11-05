@@ -5,6 +5,7 @@ import 'dart:isolate';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:handy_tdlib_next/handy_tdlib_next.dart';
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../settings/app_preferences.dart';
@@ -73,21 +74,21 @@ class TdlibService {
   Map<String, int> get namedTopicMap => Map.unmodifiable(_namedTopicMap);
 
   // This code for resolving Telegram topic ID by media category or album name
+  /// Resolves the forum topic thread ID for a given media category or file type.
   int getTopicIdForCategory(String category) {
     final lower = category.toLowerCase();
-    if (lower.contains('video')) {
-      return _namedTopicMap['Videos'] ?? _topicMap.values.firstOrNull ?? 1;
-    } else if (lower.contains('screen')) {
-      return _namedTopicMap['Screenshots'] ?? _topicMap.values.firstOrNull ?? 1;
-    } else if (lower.contains('file') ||
-        lower.contains('doc') ||
-        lower.contains('pdf') ||
-        lower.contains('zip')) {
-      return _namedTopicMap['Files'] ?? _topicMap.values.firstOrNull ?? 1;
-    } else if (lower.contains('trash')) {
-      return _namedTopicMap['Trash'] ?? _topicMap.values.firstOrNull ?? 1;
-    }
-    return _namedTopicMap['Photos'] ?? _topicMap.values.firstOrNull ?? 1;
+    final targetName = switch (lower) {
+      _ when lower.contains('video') => 'Videos',
+      _ when lower.contains('screen') => 'Screenshots',
+      _ when lower.contains('file') ||
+          lower.contains('doc') ||
+          lower.contains('pdf') ||
+          lower.contains('zip') =>
+        'Files',
+      _ when lower.contains('trash') => 'Trash',
+      _ => 'Photos',
+    };
+    return _namedTopicMap[targetName] ?? _topicMap.values.firstOrNull ?? 1;
   }
 
   final Map<String, Completer<TdObject>> _pendingRequests = {};
@@ -207,8 +208,8 @@ class TdlibService {
 
       // This code for ensuring TDLib database and file directories exist on disk
       final appDir = await getApplicationDocumentsDirectory();
-      final dbDir = Directory('${appDir.path}/tdlib');
-      final filesDir = Directory('${appDir.path}/tdlib_files');
+      final dbDir = Directory(p.join(appDir.path, 'tdlib'));
+      final filesDir = Directory(p.join(appDir.path, 'tdlib_files'));
       if (!dbDir.existsSync()) dbDir.createSync(recursive: true);
       if (!filesDir.existsSync()) filesDir.createSync(recursive: true);
 
@@ -370,8 +371,8 @@ class TdlibService {
     debugPrint('[TDLib] Auth state transition received: ${state.runtimeType}');
     if (state is AuthorizationStateWaitTdlibParameters) {
       final appDir = await getApplicationDocumentsDirectory();
-      final dbDir = '${appDir.path}/tdlib';
-      final filesDir = '${appDir.path}/tdlib_files';
+      final dbDir = p.join(appDir.path, 'tdlib');
+      final filesDir = p.join(appDir.path, 'tdlib_files');
 
       final prefs = await SharedPreferences.getInstance();
       final finalApiId = _activeApiId ?? prefs.getInt('telegram_api_id') ?? defaultApiId;

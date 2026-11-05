@@ -141,14 +141,14 @@ class SyncEngine {
     }
   }
 
-  // Pauses all ongoing and queued sync transmissions
+  /// Pauses all ongoing and queued sync transmissions.
   void pauseSync() {
     _isPaused = true;
     _updateTelemetry(isPaused: true, activeWorkers: 0, speedKBps: 0.0);
     _updateForegroundNotification();
   }
 
-  // Resumes upload pipeline and triggers queue processing
+  /// Resumes the upload pipeline and triggers queue processing.
   void resumeSync() {
     _isPaused = false;
     _updateTelemetry(isPaused: false);
@@ -192,7 +192,7 @@ class SyncEngine {
     } catch (_) {}
   }
 
-  // This code for starting the reactive queue processor stream listener
+  /// Starts the reactive queue processor stream listener.
   void startQueueProcessor() {
     _isDisposed = false;
     _queueSubscription?.cancel();
@@ -209,7 +209,7 @@ class SyncEngine {
     _refreshTelemetryCounts();
   }
 
-  // This code for stopping the sync queue processor
+  /// Stops the sync queue processor.
   void stopQueueProcessor() {
     _isDisposed = true;
     _queueSubscription?.cancel();
@@ -217,7 +217,7 @@ class SyncEngine {
     _wakeupTimer?.cancel();
   }
 
-  // This code for enqueuing a media item for upload to Telegram
+  /// Enqueues a media item for upload to Telegram.
   Future<void> queueUpload({
     required String mediaId,
     int priority = 0,
@@ -485,6 +485,7 @@ class SyncEngine {
     }
   }
 
+  /// Automatically queues all unsynced local media items for background upload.
   Future<void> autoQueueUnsynced() async {
     final unsynced = await _db.getUnsyncedMedia();
     for (final item in unsynced) {

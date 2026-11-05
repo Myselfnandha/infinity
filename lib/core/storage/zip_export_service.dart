@@ -1,6 +1,7 @@
 // This code for compressing multi-selected vault items into a zip bundle and sharing via system sheet
 import 'dart:io';
 import 'package:archive/archive_io.dart';
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../database/app_database.dart';
@@ -47,7 +48,7 @@ class ZipExportService {
     final tempDir = await getTemporaryDirectory();
     final timestamp = DateTime.now().millisecondsSinceEpoch;
     final zipFileName = customZipName ?? 'infinity_vault_export_$timestamp.zip';
-    final zipFile = File('${tempDir.path}/$zipFileName');
+    final zipFile = File(p.join(tempDir.path, zipFileName));
 
     final result = await createZipFromFiles(
       validFiles,
