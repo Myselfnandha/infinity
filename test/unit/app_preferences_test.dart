@@ -84,5 +84,32 @@ void main() {
       expect(prefs.telegramApiId, isNull);
       expect(prefs.telegramApiHash, isNull);
     });
+
+    // This code for verifying Telegram Vault Chat ID, Title, and Topics mapping persistence
+    test('Vault Chat ID, Title, and Topics map set and restore correctly', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await AppPreferences.getInstance();
+
+      expect(prefs.vaultChatId, isNull);
+      expect(prefs.vaultChatTitle, isNull);
+      expect(prefs.vaultTopics, isEmpty);
+
+      await prefs.setVaultChatId(-1001987654321);
+      await prefs.setVaultChatTitle('Infinity Super Vault');
+      await prefs.setVaultTopics({'Photos': 2, 'Videos': 4, 'Documents': 6});
+
+      expect(prefs.vaultChatId, equals(-1001987654321));
+      expect(prefs.vaultChatTitle, equals('Infinity Super Vault'));
+      expect(prefs.vaultTopics, equals({'Photos': 2, 'Videos': 4, 'Documents': 6}));
+
+      // Test clearing vault chat id and title with null
+      await prefs.setVaultChatId(null);
+      await prefs.setVaultChatTitle(null);
+      await prefs.setVaultTopics({});
+
+      expect(prefs.vaultChatId, isNull);
+      expect(prefs.vaultChatTitle, isNull);
+      expect(prefs.vaultTopics, isEmpty);
+    });
   });
 }

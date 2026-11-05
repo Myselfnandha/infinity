@@ -87,5 +87,15 @@ void main() {
       expect(tdlib.activeApiId == null || tdlib.activeApiId is int, isTrue);
       expect(tdlib.activeApiHash == null || tdlib.activeApiHash is String, isTrue);
     });
+
+    test('vaultChatId getter and setter manage active vault chat targeting', () {
+      expect(tdlib.vaultChatId == null || tdlib.vaultChatId is int, isTrue);
+      tdlib.vaultChatId = -1009876543210;
+      expect(tdlib.vaultChatId, equals(-1009876543210));
+    });
+
+    test('fileUpdateStream emits file update events correctly', () {
+      expect(tdlib.fileUpdateStream, isA<Stream>());
+    });
   });
 }

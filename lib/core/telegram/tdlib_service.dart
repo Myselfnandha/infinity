@@ -62,8 +62,7 @@ class TdlibService {
   String? _authPhoneNumber;
   String? get authPhoneNumber => _authPhoneNumber;
 
-  int? _vaultChatId;
-  int? get vaultChatId => _vaultChatId;
+  int? vaultChatId;
 
   // This code for caching forum topic thread IDs mapped by topic name
   final Map<int, int> _topicMap = {};
@@ -174,14 +173,14 @@ class TdlibService {
 
     final prefs = await SharedPreferences.getInstance();
     final appPrefs = AppPreferences(prefs);
-    if (_vaultChatId == null && appPrefs.vaultChatId != null) {
-      _vaultChatId = appPrefs.vaultChatId;
+    if (vaultChatId == null && appPrefs.vaultChatId != null) {
+      vaultChatId = appPrefs.vaultChatId;
       final savedTopics = appPrefs.vaultTopics;
       for (final entry in savedTopics.entries) {
         _namedTopicMap[entry.key] = entry.value;
         _topicMap[entry.value] = entry.value;
       }
-      debugPrint('[TDLib] Eagerly restored persisted vault chat ID: $_vaultChatId with ${savedTopics.length} topics');
+      debugPrint('[TDLib] Eagerly restored persisted vault chat ID: $vaultChatId with ${savedTopics.length} topics');
     }
 
     final finalApiId = apiId ?? _activeApiId ?? prefs.getInt('telegram_api_id') ?? defaultApiId;
@@ -544,9 +543,9 @@ class TdlibService {
         for (final id in chatsRes.chatIds) {
           final chatInfo = await sendAsync(GetChat(chatId: id));
           if (chatInfo is Chat && chatInfo.title == 'Infinity Vault') {
-            _vaultChatId = chatInfo.id;
+            vaultChatId = chatInfo.id;
             await _ensureDefaultTopics();
-            await appPrefs.setVaultChatId(_vaultChatId);
+            await appPrefs.setVaultChatId(vaultChatId);
             await appPrefs.setVaultChatTitle('Infinity Vault');
             await appPrefs.setVaultTopics(_namedTopicMap);
             return;
@@ -566,9 +565,9 @@ class TdlibService {
       );
 
       if (created is Chat) {
-        _vaultChatId = created.id;
+        vaultChatId = created.id;
         await _ensureDefaultTopics();
-        await appPrefs.setVaultChatId(_vaultChatId);
+        await appPrefs.setVaultChatId(vaultChatId);
         await appPrefs.setVaultChatTitle('Infinity Vault');
         await appPrefs.setVaultTopics(_namedTopicMap);
       }
@@ -576,7 +575,7 @@ class TdlibService {
   }
 
   Future<void> _ensureDefaultTopics() async {
-    if (_vaultChatId == null) return;
+    if (vaultChatId == null) return;
 
     final defaultTopicNames = ['Photos', 'Videos', 'Screenshots', 'Trash', 'Files'];
     for (final name in defaultTopicNames) {
@@ -585,11 +584,11 @@ class TdlibService {
   }
 
   Future<int?> createTopic(String name) async {
-    if (_vaultChatId == null) return null;
+    if (vaultChatId == null) return null;
 
     final res = await sendAsync(
       CreateForumTopic(
-        chatId: _vaultChatId!,
+        chatId: vaultChatId!,
         name: name,
         icon: const ForumTopicIcon(color: 0x6FB9F0, customEmojiId: 0),
       ),
@@ -614,7 +613,7 @@ class TdlibService {
     required int topicId,
     String? caption,
   }) async {
-    if (_vaultChatId == null) return null;
+    if (vaultChatId == null) return null;
 
     final formattedCaption = caption != null
         ? FormattedText(text: caption, entities: [])
@@ -658,7 +657,7 @@ class TdlibService {
 
     final res = await sendAsync(
       SendMessage(
-        chatId: _vaultChatId!,
+        chatId: vaultChatId!,
         messageThreadId: topicId,
         inputMessageContent: content,
       ),

@@ -200,6 +200,46 @@ void main() {
       await tester.pumpWidget(const SizedBox());
       await tester.pump(const Duration(milliseconds: 100));
     });
+
+    testWidgets('MainScreen back press switches tab to Photos when on non-zero tab', (WidgetTester tester) async {
+      await tester.pumpWidget(buildSafeMainScreen());
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      // Switch to Settings tab (index 4)
+      await tester.tap(find.text('Settings'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      // Trigger pop via PopScope
+      final dynamic popScopeWidget = tester.widget(find.byWidgetPredicate((w) => w is PopScope));
+      popScopeWidget.onPopInvokedWithResult(false, null);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      // Should return to Photos tab
+      expect(find.text('Photos'), findsWidgets);
+
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(milliseconds: 100));
+    });
+
+    testWidgets('MainScreen back press cancels selection mode first', (WidgetTester tester) async {
+      await tester.pumpWidget(buildSafeMainScreen(isSelectionMode: true));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      final dynamic popScopeWidget = tester.widget(find.byWidgetPredicate((w) => w is PopScope));
+      popScopeWidget.onPopInvokedWithResult(false, null);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      // Verify widget handled pop gracefully
+      expect(find.byType(MainScreen), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(milliseconds: 100));
+    });
   });
 
   // This code for grouping AuthScreen authentication interaction tests

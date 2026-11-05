@@ -479,5 +479,64 @@ void main() {
       final item = await db.getMediaItem('media_exhausted');
       expect(item!.cloudState, equals('FAILED'));
     });
+
+    test('11. pauseSync and resumeSync control transmission state and emit telemetry updates', () async {
+      expect(syncEngine.currentTelemetry.isPaused, isFalse);
+
+      syncEngine.pauseSync();
+      expect(syncEngine.currentTelemetry.isPaused, isTrue);
+
+      syncEngine.resumeSync();
+      expect(syncEngine.currentTelemetry.isPaused, isFalse);
+
+      // Allow async task triggered by resumeSync to settle before teardown
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    });
+
+    test('12. processNextTask halts immediately when pauseSync is active', () async {
+      final file = io.File('${tempDir.path}/paused_item.jpg');
+      await file.writeAsBytes([1, 2, 3]);
+
+      await db.into(db.mediaItems).insert(
+            MediaItemsCompanion.insert(
+              id: 'media_paused',
+              mediaType: 'image',
+              fileSize: 3,
+              dateAdded: DateTime.now(),
+              filePath: drift.Value(file.path),
+            ),
+          );
+
+      await syncEngine.queueUpload(mediaId: 'media_paused');
+      syncEngine.pauseSync();
+
+      await syncEngine.processNextTask();
+
+      // Upload must NOT have been called while paused
+      expect(tdlib.uploadCallCount, equals(0));
+      final task = (await db.select(db.syncQueue).get()).first;
+      expect(task.status, equals('pending'));
+    });
+
+    test('13. UploadTelemetryState computes progressPercentage and throughputMbps correctly', () {
+      const state = UploadTelemetryState(
+        isPaused: false,
+        activeWorkers: 1,
+        speedKBps: 8192.0,
+        bytesTransferredTotal: 5000,
+        completedCount: 5,
+        totalCount: 10,
+      );
+
+      expect(state.progressPercentage, equals(0.5));
+      expect(state.activeWorkers > 0 && !state.isPaused, isTrue);
+      expect(state.speedFormatted, contains('MB/s'));
+
+      const pausedState = UploadTelemetryState(
+        isPaused: true,
+        activeWorkers: 1,
+      );
+      expect(pausedState.activeWorkers > 0 && !pausedState.isPaused, isFalse);
+    });
   });
 }
